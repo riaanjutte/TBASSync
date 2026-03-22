@@ -186,7 +186,7 @@ def open_link(link: str):
     webbrowser.open(link)
 
 def open_link_HSDDocumentation():
-    open_link("https://https://hsd-online.net")
+    open_link("https://hsd-online.net")
 
 def open_link_IRREWelcome():
     open_link("https://www.lesirreductibles.com")
