@@ -215,19 +215,7 @@ class CollectionURLDialog:
                 if not collection:
                     continue
                     
-                # Get position of the item in the tree
-                bbox = self.tree.bbox(item_id, '#0')
-                if not bbox:
-                    # Si bbox est None, la ligne n'est pas visible/rendue
-                    continue
-                    
-                x, y, width, height = bbox
-                
-                # Vérifier que les dimensions sont valides
-                if width <= 0 or height <= 0:
-                    continue
-                
-                # Create clickable icon (18x18 size)
+                # Create clickable icon (18x18 size) for all items, visible or not
                 icon = CliquableIcon(
                     self.tree,
                     icon_path=getIconPath("magnifying-glass.png"),
@@ -238,10 +226,16 @@ class CollectionURLDialog:
                     icon_size=18,
                     bg=tree_bg
                 )
-                # Place the icon in the first column, centered
-                icon.place(x=x + (width - 18) // 2, y=y + (height - 18) // 2)
                 # Store reference to prevent garbage collection
                 self.collection_icons[item_id] = icon
+
+                # Place the icon only if the item is currently visible
+                bbox = self.tree.bbox(item_id, '#0')
+                if bbox:
+                    x, y, width, height = bbox
+                    if width > 0 and height > 0:
+                        icon.place(x=x + (width - 18) // 2, y=y + (height - 18) // 2)
+                # If not visible, reposition_icons will place it when scrolled into view
                 
             except Exception as e:
                 # En mode release, les erreurs peuvent être silencieuses
