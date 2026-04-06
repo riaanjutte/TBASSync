@@ -14,7 +14,7 @@ class FirstLaunchGUI:
     def __init__(self, root):
         self.root = root
         
-        self.splash = SplashScreen(root, "SplashScreenFirstLaunch.jpg")
+        self.splash = SplashScreen(root, "SplashScreenFirstLaunch.png")
         #only display the splash screen
         root.withdraw()
         
