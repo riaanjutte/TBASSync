@@ -6,7 +6,7 @@ import webbrowser
 
 import Services.loggingService as loggingService
 from Services.scannerService import bytesToString
-from Services.configurationService import getConf
+from Services.configurationService import getConf, update_config_param
 from Services.filesService import getIconPath
 from Services.subscriptionsService import SubscribedCollection, getAllSubcriptions, removeCollection, changeSubscriptionActivation
 from Services.messageBrocker import MessageBrocker
@@ -74,6 +74,7 @@ class CollectionsPanel():
         self.list_frame.bind('<Configure>', self._on_frame_configure)
         
         self.collections_buttons_registry:list[CliquableIcon] = []
+        self._label_click_count = 0
 
     def emit_loading(self): 
         #local locks
@@ -157,6 +158,14 @@ class CollectionsPanel():
                 )
             toggle_button.pack(side=tk.LEFT, padx=2)
             self.collections_buttons_registry.append(toggle_button)
+
+            if line.name == "IRRE" and getConf("displayCollectionsIcons"):
+                squad_icon = CliquableIcon(
+                    root=frame,
+                    icon_path=getIconPath("irre-logo-32.png"),
+                    onClick=lambda o=line: self._open_url_on_browser("https://www.lesirreductibles.com")
+                )
+                squad_icon.pack(side=tk.LEFT, padx=2)
             
             #display the size corresponding to the current censorship parameter
             displayed_size = line.size_in_b_unrestricted
@@ -164,8 +173,11 @@ class CollectionsPanel():
                 displayed_size = line.size_in_b_restricted_only
 
             text_line = f"{line.name} ({bytesToString(displayed_size)})"
-            ttk.Label(frame, text=text_line, width=38).pack(side=tk.LEFT, padx=5)
-            
+            lbl = ttk.Label(frame, text=text_line, width=40)
+            lbl.pack(side=tk.LEFT, padx=5)
+            if line.name == "IRRE":
+                lbl.bind("<Button-1>", self._on_label_click)
+
             trash_button = CliquableIcon(
                 root=frame, 
                 icon_path=getIconPath("trash-can.png"),
@@ -244,6 +256,17 @@ class CollectionsPanel():
 
     def _open_collection_on_browser(self, item: SubscriptionLine):
         webbrowser.open(item.browserURL)
+
+    def _on_label_click(self, event=None):
+        self._label_click_count += 1
+        if self._label_click_count >= 5:
+            self._label_click_count = 0
+            new_value = not getConf("displayCollectionsIcons")
+            update_config_param("displayCollectionsIcons", new_value)
+            self._update_list()
+
+    def _open_url_on_browser(self, url: str):
+        webbrowser.open(url)
 
     #MOUSE EVENTS (for the scroll)
     def _bind_mousewheel(self, event):
