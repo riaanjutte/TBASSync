@@ -22,8 +22,11 @@ if (Test-Path $DistDir) {
 }
 New-Item -Path $DistDir -ItemType Directory
 
-#Activate the venv
-.\venv\Scripts\Activate.ps1
+#Activate the venv (local dev). On CI there's no venv — setup-python
+#puts the interpreter on PATH directly, so skip activation when missing.
+if (Test-Path ".\venv\Scripts\Activate.ps1") {
+    .\venv\Scripts\Activate.ps1
+}
 
 #VERSIONNING
 $VERSION = python Services\versionManager.py

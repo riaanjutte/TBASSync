@@ -11,6 +11,11 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    # action-gh-release needs write access to create the Release and upload
+    # assets. GitHub's default GITHUB_TOKEN is read-only on new repos, so
+    # grant contents:write explicitly. No-op for non-tag runs.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
