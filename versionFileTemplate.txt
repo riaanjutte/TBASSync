@@ -16,13 +16,13 @@ VSVersionInfo(
                 StringTable(
                     '040904B0',
                     [
-                        StringStruct('CompanyName', 'RaphED'),
-                        StringStruct('FileDescription', 'Haluter Skin Downloader'),
+                        StringStruct('CompanyName', 'riaanjutte'),
+                        StringStruct('FileDescription', 'TBASSync - IL-2 Skin Sync Tool'),
                         StringStruct('FileVersion', '$VERSION.0.0.0'),
-                        StringStruct('InternalName', 'HSDSync'),
-                        StringStruct('LegalCopyright', '© 2025 RaphED'),
+                        StringStruct('InternalName', 'TBASSync'),
+                        StringStruct('LegalCopyright', '© 2026 riaanjutte. Fork of IL2GB-HSDSync / ISS.'),
                         StringStruct('OriginalFilename', '$FILENAME'),
-                        StringStruct('ProductName', 'HSDSync'),
+                        StringStruct('ProductName', 'TBASSync'),
                         StringStruct('ProductVersion', '$VERSION.0.0.0')
                     ]
                 )

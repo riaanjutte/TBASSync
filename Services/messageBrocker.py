@@ -5,6 +5,7 @@ class MessageBrocker:
     def __init__(self):
         self.consoleMessageHooks = list[Callable[[str], Any]]()
         self.progressHooks = list[Callable[[float], Any]]()
+        self.progressSuccessHooks = list[Callable[[], Any]]()
 
     #SINGLETON MANAGEMENT
     _instance = None
@@ -39,3 +40,15 @@ class MessageBrocker:
     def registerProgressHook(callback: Callable[[float], Any]):
         brocker_instance = MessageBrocker.getSingletonInstance()
         brocker_instance.progressHooks.append(callback)
+
+    # --- PROGRESS SUCCESS (downloads complete -> turn bar green at 100%)
+    @staticmethod
+    def emitProgressSuccess() -> None:
+       brocker_instance = MessageBrocker.getSingletonInstance()
+       for hook in brocker_instance.progressSuccessHooks:
+           hook()
+
+    @staticmethod
+    def registerProgressSuccessHook(callback: Callable[[], Any]):
+        brocker_instance = MessageBrocker.getSingletonInstance()
+        brocker_instance.progressSuccessHooks.append(callback)

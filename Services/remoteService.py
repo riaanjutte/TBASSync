@@ -105,24 +105,6 @@ def getRemoteCollectionsCatalog() -> list[RemoteCollection]:
         raise e
 
 
-def downloadSkinToTempDir(skinInfo: RemoteSkin):
-
-    downloadedFiles = []
-
-    #download all dds files
-    for file in skinInfo.dds_files():
-
-        downloadedFiles.append(
-            downloadFile(
-                url=skins_download_URL.replace("[path]", file.path), 
-                destination_file_name=file.destination_name, 
-                expectedMD5=file.md5
-            )
-        )
-    
-    return downloadedFiles
-
-
 customPhotosCatalogURL = "https://www.lesirreductibles.com/irreskins/IRRE/CustomPhotos/[mode]CustomPhotosManifest.json"
 customPhotosFilesURL = "https://www.lesirreductibles.com/irreskins/IRRE/CustomPhotos/[mode]/[aircraft]/Textures/custom_photo.dds"
 

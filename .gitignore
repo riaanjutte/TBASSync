@@ -1,10 +1,31 @@
-venv
-build
-release
-temp
-Subscriptions
+# Python
+__pycache__/
 *.pyc
-HSDSync-config.json
-HSDSync-subscriptions.json
-HSDSync-hashes.json
-HSDSync.log
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# PyInstaller build artifacts
+build/
+release/
+dist/
+*.manifest
+
+# Runtime state (generated beside the exe or under %APPDATA%\TBASSync)
+temp/
+Subscriptions/
+TBASSync-config.json
+TBASSync-subscriptions.json
+TBASSync-hashes.json
+TBASSync.log
+
+# Editor / tooling
+.claude/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

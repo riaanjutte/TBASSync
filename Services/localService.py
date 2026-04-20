@@ -6,6 +6,7 @@ import Services.loggingService as loggingService
 from Services.configurationService import getConf
 from Services.filesService import moveFile, deleteFile
 from Services.messageBrocker import MessageBrocker
+from Services.paths import getUserDataFilePath
 
 
 def getSkinDirectory():
@@ -188,9 +189,13 @@ def calculate_full_md5(file_path):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-file_hashes_name = "HSDSync-hashes.json"
+file_hashes_name = "TBASSync-hashes.json"
+# Full path to the hashes cache (lives in the user data dir when frozen).
+file_hashes_path = getUserDataFilePath(file_hashes_name)
 
-def manage_file_md5(file_path, json_file=file_hashes_name):
+def manage_file_md5(file_path, json_file=None):
+    if json_file is None:
+        json_file = file_hashes_path
     """
     Manage file hashes using metadata as a quick check before full MD5 calculation.
     Returns the full MD5 hash of the file.

@@ -15,8 +15,8 @@ a = Analysis(
     optimize=0,
 )
 
-#Add all the Ressources folder content to the data
-a.datas += Tree('./Ressources', prefix='Ressources', typecode='DATA')
+#Add all the Resources folder content to the data
+a.datas += Tree('./Resources', prefix='Resources', typecode='DATA')
 
 pyz = PYZ(a.pure)
 
@@ -26,11 +26,11 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='HSDSync',
+    name='TBASSync',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -39,6 +39,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version='build\\HSDSync_versionFile',
-    icon=['Ressources\\hsd.ico'],
+    version='build\\TBASSync_versionFile',
+    icon=['Resources\\hsd.ico'],
 )

@@ -2,185 +2,338 @@ import threading
 from tkinter import ttk
 import tkinter as tk
 import webbrowser
+import requests
+from PIL import Image, ImageTk
 
 import Services.loggingService as loggingService
 import Services.synchronizerService as SynchronizerService
 import Services.scannerService as ScannerService
 from Services.messageBrocker import MessageBrocker
-from Services.configurationService import configurationFileExists
+from Services.loggingService import getLogFilePath
+from Services.configurationService import (
+    configurationFileExists,
+    generateConfFile,
+    checkIL2InstallPath,
+)
 from Services.filesService import getRessourcePath, getIconPath, cleanTemporaryFolder
 
-from GUI.collectionsPanel import CollectionsPanel
+from Services.subscriptionsService import getAllSubcriptions
 from GUI.parametersPanel import ParametersPanel
-from GUI.consolePanel import ConsolePanel
+from GUI.statusPanel import StatusPanel
 from GUI.actionsPanel import ActionPanel
+
 from GUI.progressBar import ProgressBar
 from GUI.Components.clickableIcon import CliquableIcon
-from GUI.firstLaunchGUI import runFirstLaunchGUI
-from GUI.customTheme import apply_theme
+from GUI.customTheme import apply_theme, TBASDarkTheme
 
 
 class MainGUI:
-    
-    def __init__(self, root):
 
+    def __init__(self, root, first_launch=False, startup_exception: Exception = None):
         self.root = root
-
+        self._first_launch = first_launch
+        self._startup_exception = startup_exception
         self.root.iconbitmap(getRessourcePath("hsd.ico"))
 
-        # Apply custom dark theme
         apply_theme(self.root)
-        
-        self.root.title("Haluter's Skin Downloader")
-        self.root.geometry("850x600")
-        
-        # 1 - UPPER FRAME
+
+        self.root.title("TBAS Sync v1.0")
+        self.root.geometry("900x500")
+        self.root.minsize(750, 420)
+
+        # ── HEADER ──────────────────────────────────────────────────────────
+        self._build_header()
+
+        # ── TOP: Parameters ─────────────────────────────────────────────────
         top_main_frame = tk.Frame(self.root)
         top_main_frame.pack(side="top", fill="both")
-        # 1.1 - left upper frame
-        left_upper_frame = tk.Frame(top_main_frame)
-        left_upper_frame.pack(side="left", fill="both")
 
-        self.collectionsPanel = CollectionsPanel(
-            left_upper_frame,
-            on_loading_start=self.on_collections_loading_start,
-            on_loading_complete=self.on_collections_loading_completed,
-            on_collections_change=self.on_collections_change
+        self.parametersPanel = ParametersPanel(
+            top_main_frame,
+            on_parameters_change=self.on_parameters_change,
+            ask_broad_search=self._ask_broad_search_via_status,
         )
 
-        # 1.2 - right upper frame
-        right_upper_frame = tk.Frame(top_main_frame)
-        right_upper_frame.pack(side="right", fill="both", expand=True)
-                
-        self.parametersPanel = ParametersPanel(right_upper_frame, on_parameters_change=self.on_parameters_change)
+        # ── PROGRESS BAR ─────────────────────────────────────────────────────
+        progress_bar_frame = tk.Frame(self.root, bg=TBASDarkTheme.BG_DARKER, height=16)
+        progress_bar_frame.pack(fill="x")
+        progress_bar_frame.pack_propagate(False)
 
-        # 2 - BOTTOM FRAME
-        #2.1 info bar
-        info_bar = tk.Frame(self.root)
-        info_bar.pack(fill="both")
+        self.progressBar = ProgressBar(progress_bar_frame)
+        self.progressBar.pack(fill="x", padx=0, pady=4)
 
-        info_bar.grid_columnconfigure(0, weight=0)  # Left column
-        info_bar.grid_columnconfigure(1, weight=1)  # Middle colum, takes all possible width
-        info_bar.grid_columnconfigure(2, weight=0)  # Right
-        info_bar.grid_rowconfigure(0)
-        
-        self.irreIcon = CliquableIcon(
-            info_bar, 
-            icon_path=getIconPath("irre-logo-32.png"),
-            onClick=open_link_IRREWelcome,
-            opacityFactor=0,
-            onMouseOverOpacityFactor=255
+        # ── FOOTER: Action buttons (packed first with side=bottom so its
+        # space is reserved — it must always stay visible, even when the
+        # window is shrunk). ────────────────────────────────────────────────
+        footer_frame = tk.Frame(self.root)
+        footer_frame.pack(side="bottom", fill="x")
+        self.actionPanel = ActionPanel(
+            footer_frame,
+            scanCommand=self.start_scan_async,
+            syncCommand=self.start_synchronization_async
         )
-        self.progressBar = ProgressBar(info_bar)
 
-        self.helpIcon = CliquableIcon(
-            info_bar, 
-            icon_path=getIconPath("help-32.png"), 
-            tooltip_text="Online HSD documentation", 
-            onClick=open_link_HSDDocumentation
-        )
-        
-        self.irreIcon.grid(column=0, row=0, padx=5, pady=2)
-        self.progressBar.grid(column=1, row=0, padx=5, pady=5)
-        self.helpIcon.grid(column=2, row=0, padx=5, pady=2)
-        
+        # ── BOTTOM: Status panel (fills remaining space above the footer) ──
         bottom_main_frame = tk.Frame(self.root)
         bottom_main_frame.pack(side="bottom", fill="both", expand=True)
 
-        self.consolePanel = ConsolePanel(bottom_main_frame)
+        self.statusPanel = StatusPanel(bottom_main_frame)
 
-        self.actionPanel = ActionPanel(bottom_main_frame, scanCommand = self.start_scan_async, syncCommand=self.start_synchronization_async)
-
-        #OTHER STORED INFORMATION
+        # State
         self.currentScanResult: SynchronizerService.ScanResult = None
-        self.pendingProcessing= False
+        self.pendingProcessing = False
 
-        #Once all components are declared, we can load the data
-        #for the moment, only the collections are loaded
-        self.root.after(0, self.collectionsPanel.loadCollections_async)
+        if self._startup_exception is not None:
+            self.root.after(0, lambda: self._show_startup_exception(self._startup_exception))
+        else:
+            self.root.after(0, self.load_collections_async)
 
-    #COMPONENTS LISTENERS
-    def on_collections_loading_start(self):
+    def _show_startup_exception(self, exception: Exception):
         self.lock_components_actions()
-        MessageBrocker.emitConsoleMessage("Please wait, collections are loading...")
+        self.actionPanel.set_state(ActionPanel.STATE_LOADING)
+        self.actionPanel.primaryButton.configure(text="\u2717  Crashed")
+        if isinstance(exception, requests.exceptions.ConnectionError):
+            self.statusPanel.showError(
+                "No internet connection",
+                "TBAS Sync could not reach the server.",
+            )
+        else:
+            self.statusPanel.showError(
+                "TBAS Sync has crashed",
+                f"Please consult the log file:\n{getLogFilePath()}",
+            )
 
-    def on_collections_loading_completed(self):
+    def _build_header(self):
+        header = tk.Frame(self.root, bg=TBASDarkTheme.BG_DARKER, height=85)
+        header.pack(side="top", fill="x")
+        header.pack_propagate(False)
+
+        # Logo
+        logo_path = getRessourcePath("TBAS.png")
+        img = Image.open(logo_path).convert("RGBA")
+        logo_h = 65
+        logo_w = int(img.width * logo_h / img.height)
+        img = img.resize((logo_w, logo_h), Image.Resampling.LANCZOS)
+        self._logo_base_img = img
+        self._logo_photo = ImageTk.PhotoImage(img)
+
+        self._logo_label = tk.Label(
+            header,
+            image=self._logo_photo,
+            bg=TBASDarkTheme.BG_DARKER
+        )
+        self._logo_label.pack(side="left", padx=(10, 6), pady=8)
+
+        self.root.after(0, self._start_logo_spin)
+
+        tk.Label(
+            header,
+            text="TBAS Sync",
+            font=("Bahnschrift Light Condensed", 29, "bold"),
+            fg=TBASDarkTheme.FG_PRIMARY,
+            bg=TBASDarkTheme.BG_DARKER
+        ).pack(side="left", padx=(0, 0))
+
+        # Right-side icons
+        self.helpIcon = CliquableIcon(
+            header,
+            icon_path=getIconPath("help-32.png"),
+            tooltip_text="Online HSD documentation",
+            onClick=open_link_HSDDocumentation,
+            bg=TBASDarkTheme.BG_DARKER
+        )
+        self.helpIcon.pack(side="right", padx=(4, 12), pady=18)
+
+        self.discordIcon = CliquableIcon(
+            header,
+            icon_path=getIconPath("discord.png"),
+            tooltip_text="Join the TBAS Discord",
+            onClick=open_link_TBASDiscord,
+            opacityFactor=60,
+            onMouseOverOpacityFactor=220,
+            bg=TBASDarkTheme.BG_DARKER
+        )
+        self.discordIcon.pack(side="right", padx=4, pady=18)
+
+        # Orange accent rule beneath the header
+        tk.Frame(self.root, height=2, bg=TBASDarkTheme.ACCENT_PRIMARY).pack(
+            side="top", fill="x"
+        )
+
+    def _start_logo_spin(self, duration_ms=1000, rotations=1, interval_ms=40):
+        total_frames = max(1, duration_ms // interval_ms)
+        self._logo_spin_frames = []
+        for i in range(1, total_frames + 1):
+            angle = -(i / total_frames) * 360 * rotations
+            rotated = self._logo_base_img.rotate(angle, resample=Image.Resampling.BILINEAR)
+            self._logo_spin_frames.append(ImageTk.PhotoImage(rotated))
+        self._logo_spin_index = 0
+        self._advance_logo_spin(interval_ms)
+
+    def _advance_logo_spin(self, interval_ms):
+        if self._logo_spin_index < len(self._logo_spin_frames):
+            self._logo_label.configure(image=self._logo_spin_frames[self._logo_spin_index])
+            self._logo_spin_index += 1
+            self.root.after(interval_ms, self._advance_logo_spin, interval_ms)
+        else:
+            self._logo_label.configure(image=self._logo_photo)
+            self._logo_spin_frames = None
+
+    # ── COMPONENT LISTENERS ──────────────────────────────────────────────────
+
+    def load_collections_async(self):
+        def worker():
+            self.root.after(0, self._on_collections_loading_start)
+            try:
+                getAllSubcriptions()
+                self.root.after(0, self._on_collections_loading_completed)
+            except Exception as e:
+                loggingService.error(e)
+                self.root.after(0, self._on_collections_loading_failed)
+        threading.Thread(target=worker).start()
+
+    def _on_collections_loading_start(self):
+        self.lock_components_actions()
+        self.actionPanel.set_state(ActionPanel.STATE_LOADING)
+        self.statusPanel.showLoading()
+
+    def _on_collections_loading_completed(self):
         self.unlock_components_actions()
-        MessageBrocker.emitConsoleMessage("Collections loaded.")
-        self.root.after(0, self.start_scan_async) #immediatly launch a scan after the modification
+        if self._first_launch and not checkIL2InstallPath():
+            self._first_launch = False
+            self.parametersPanel.auto_find_path(on_complete=self.start_scan_async)
+        else:
+            self.root.after(0, self.start_scan_async)
 
-    def on_collections_change(self):
-        self.root.after(0, self.start_scan_async) #immediatly launch a scan after the modification
-    
+    def _on_collections_loading_failed(self):
+        self.unlock_components_actions()
+        self.actionPanel.set_state(ActionPanel.STATE_UP_TO_DATE)
+        self.statusPanel.showError("Cannot load collection from server")
+
     def on_parameters_change(self):
-        self.root.after(0, self.start_scan_async) #immediatly launch a scan after the modification
+        self.root.after(0, self.start_scan_async)
 
-    #MANAGE COMPONENTS ACTIONS
+    def _ask_broad_search_via_status(self, on_answer):
+        self.statusPanel.showPrompt(
+            title="IL-2 not found via Steam",
+            detail="Search your entire computer for the IL-2 folder?\nThis may take a minute.",
+            primary_label="Search computer",
+            on_primary=lambda: on_answer(True),
+            secondary_label="Not now",
+            on_secondary=lambda: on_answer(False),
+        )
+
+    # ── LOCK / UNLOCK ────────────────────────────────────────────────────────
+
     def lock_components_actions(self):
-        #collections panel
-        self.collectionsPanel.lock_actions()
-        #parameters panel
         self.parametersPanel.lock_actions()
-        #Action panel
-        self.actionPanel.lockScanButton()
-        self.actionPanel.lockSyncButton()
 
     def unlock_components_actions(self):
-        #collections panel
-        self.collectionsPanel.unlock_actions()
-        #parameters panel
         self.parametersPanel.unlock_actions()
-        #Action panel
-        self.actionPanel.unlockScanButton() #Scan button is always available
-        if self.currentScanResult is None: #no scan performed
-            self.actionPanel.lockSyncButton()
-        elif self.currentScanResult.IsSyncUpToDate(): #scan reveal no update needed
-            self.actionPanel.lockSyncButton()
-        else: #otherwise we have a scan, and an sync to do
-            self.actionPanel.unlockSyncButton()
-    
-    #SCAN RESULT DISPLAY
-    def cleanScanResult(self):
-        self.currentScanResult = None
-        self.consolePanel.clearPanel()
 
-    def displayScanResult(self):
-        #Display the scan result in the console
-        if self.currentScanResult is not None:
-            self.consolePanel.addLine(self.currentScanResult.toString())
+    def _refresh_action_state(self):
+        if self._hasPendingChanges():
+            self.actionPanel.set_state(ActionPanel.STATE_UPDATES)
+        else:
+            self.actionPanel.set_state(ActionPanel.STATE_UP_TO_DATE)
 
-    #MAIN SCAN AND SYNC PROCESSES
+    def _pendingSkinCount(self):
+        if self.currentScanResult is None:
+            return 0
+        return len(self.currentScanResult.missingSkins) + len(self.currentScanResult.toBeUpdatedSkins)
+
+    def _pendingCockpitCount(self):
+        if self.currentScanResult is None:
+            return 0
+        return len(self.currentScanResult.toBeUpdatedCockpitNotes)
+
+    def _hasPendingChanges(self):
+        if self.currentScanResult is None:
+            return False
+        return self._pendingSkinCount() > 0 or self._pendingCockpitCount() > 0
+
+    def _refresh_status_from_scan(self):
+        if self.currentScanResult is None:
+            self.statusPanel.showError("Scan did not complete")
+        elif not self._hasPendingChanges():
+            self.statusPanel.showUpToDate()
+        else:
+            self.statusPanel.showUpdatesNeeded(
+                skins=self._pendingSkinCount(),
+                cockpit=self._pendingCockpitCount(),
+            )
+
+    # ── SCAN & SYNC ──────────────────────────────────────────────────────────
+
     def start_scan(self):
-        self.cleanScanResult()
+        self.currentScanResult = None
         self.lock_components_actions()
-
+        self.actionPanel.set_state(ActionPanel.STATE_SCANNING)
+        self.statusPanel.showScanning()
+        scan_crashed = False
         try:
             self.currentScanResult = ScannerService.scanAll()
-            self.displayScanResult()
         except Exception as e:
             loggingService.error(e)
-            MessageBrocker.emitConsoleMessage("SCAN ERROR (see log file for further details)")
             MessageBrocker.emitProgress(0)
-
-        
+            scan_crashed = True
         self.unlock_components_actions()
+        self._refresh_action_state()
+        if scan_crashed:
+            self.statusPanel.showError("Scan failed")
+        elif self.currentScanResult is None:
+            self.statusPanel.showError(
+                "IL-2 folder not found",
+                "Click the path above and choose your IL-2 folder, or press Auto-detect.",
+            )
+        else:
+            self._refresh_status_from_scan()
 
     def start_scan_async(self):
         threading.Thread(target=self.start_scan).start()
-    
+
     def start_synchronization(self):
         if self.currentScanResult is None:
             loggingService.error("Sync launched with no scan result")
             return
-        
+        skins_to_update = self._pendingSkinCount()
+        cockpit_to_update = self._pendingCockpitCount()
         self.lock_components_actions()
-        SynchronizerService.updateAll(self.currentScanResult)
-        self.currentScanResult = None #the current scan is no more relevant
+        self.actionPanel.set_state(ActionPanel.STATE_SYNCING)
+        self.statusPanel.showSyncing(skins=skins_to_update, cockpit=cockpit_to_update)
+        try:
+            skin_total, skin_success, cockpit_total, cockpit_success = \
+                SynchronizerService.updateAll(self.currentScanResult)
+        except Exception as e:
+            loggingService.error(e)
+            self.currentScanResult = None
+            self.unlock_components_actions()
+            self._refresh_action_state()
+            self.statusPanel.showError(
+                "Unexpected error during update",
+                "See the log file for details.",
+            )
+            return
+        self.currentScanResult = None
         self.unlock_components_actions()
+        self._refresh_action_state()
+        skin_failed = skin_total - skin_success
+        cockpit_failed = cockpit_total - cockpit_success
+        if skin_failed == 0 and cockpit_failed == 0:
+            self.statusPanel.showSyncSuccess(skins=skin_success, cockpit=cockpit_success)
+        else:
+            self.statusPanel.showSyncPartialFailure(
+                skin_failed=skin_failed,
+                skin_total=skin_total,
+                cockpit_failed=cockpit_failed,
+                cockpit_total=cockpit_total,
+            )
 
     def start_synchronization_async(self):
         threading.Thread(target=self.start_synchronization).start()
-#TOOLS
+
+
+# ── HELPERS ──────────────────────────────────────────────────────────────────
 
 def open_link(link: str):
     webbrowser.open(link)
@@ -188,20 +341,23 @@ def open_link(link: str):
 def open_link_HSDDocumentation():
     open_link("https://hsd-online.net")
 
-def open_link_IRREWelcome():
-    open_link("https://www.lesirreductibles.com")
+def open_link_TBASDiscord():
+    open_link("https://discord.gg/H38PyshRkN")
 
-#MAIN RUN
+
+# ── ENTRY POINT ──────────────────────────────────────────────────────────────
+
 def runMainGUI():
-
-    #make sure the temporary folder is clean
     cleanTemporaryFolder()
-
-    #check conf file is generated
-    if not configurationFileExists():
-        runFirstLaunchGUI()
-    
+    first_launch = not configurationFileExists()
+    if first_launch:
+        generateConfFile()
     root = tk.Tk()
-    mainGUI = MainGUI(root)
+    mainGUI = MainGUI(root, first_launch=first_launch)
+    root.mainloop()
 
+
+def runMainGUIException(exception: Exception):
+    root = tk.Tk()
+    mainGUI = MainGUI(root, startup_exception=exception)
     root.mainloop()

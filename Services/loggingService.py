@@ -1,14 +1,23 @@
 import logging
-log_file_name = 'HSDSync.log'
+
+from Services.paths import getUserDataFilePath
+
+log_file_name = 'TBASSync.log'
+
+
+def getLogFilePath():
+    """Absolute path to the log file (inside the user data dir when frozen)."""
+    return getUserDataFilePath(log_file_name)
+
 
 def initialise_logger(debug_mode = False):
-    
+
     logLevel = logging.INFO
     if debug_mode:
         logLevel = logging.DEBUG
-    
+
     logging.basicConfig(
-        filename='HSDSync.log',       # Le fichier de log où les messages seront enregistrés
+        filename=getLogFilePath(),     # Le fichier de log où les messages seront enregistrés
         level= logLevel,          # Le niveau de log (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         format='%(asctime)s - %(levelname)s - %(message)s',  # Format du message
         datefmt='%Y-%m-%d %H:%M:%S'    # Format de la date

@@ -3,7 +3,7 @@
 #Build global parameters
 $BuildDir = "build"
 $DistDir = "release"
-$zipFile = "HSDSync.zip"
+$zipFile = "TBASSync.zip"
 
 #clear all pycaches
 Get-ChildItem -Path "." -Directory -Recurse -Filter "__pycache__" | ForEach-Object {
@@ -72,7 +72,12 @@ function New-exeFileFromSpecFile {
 }
 
 #Creation of the main EXE
-New-exeFileFromSpecFile -appName "HSDSync"
+New-exeFileFromSpecFile -appName "TBASSync"
+
+#copy static release assets (end-user README, etc.) into the dist folder
+if (Test-Path "releaseAssets") {
+    Copy-Item -Path "releaseAssets\*" -Destination $DistDir -Recurse -Force
+}
 
 #create the zip with all files in the dist
 Compress-Archive -Path "$DistDir\*" -DestinationPath $DistDir"\"$zipFile

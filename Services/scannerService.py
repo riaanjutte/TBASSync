@@ -38,31 +38,19 @@ class ScanResult:
             else:
                 returnString += f"<bold>{len(self.toBeUpdatedCockpitNotes)} custom photos are to be updated ({bytesToString(diskSpaceStats['toBeUpdatedCustomPhotos'])})</bold>\n"
 
-        returnString += f"\nMissing skins ({bytesToString(diskSpaceStats['missingSkinsSpace'])}) :\n"
-        for skin in self.missingSkins:
-            returnString += f"<blue>{skin.name()}</blue>\n"
-        if len(self.missingSkins) == 0:
-            returnString +="- None -\n"
-
-        returnString += f"\nTo be updated skins ({bytesToString(diskSpaceStats['toBeUpdatedSkinsSpace'])}) :\n"
-        for skin in self.toBeUpdatedSkins:
-            returnString += f"<blue>{skin.name()}</blue>\n"
-        if len(self.toBeUpdatedSkins) == 0:
-            returnString +="- None -\n"
-
         afterUpdateDiskSpace = diskSpaceStats["subscribedSkinsSpace"]
 
         returnString += f"\n********** Unregistered skins ********** ({bytesToString(diskSpaceStats['toBeRemovedSkinsSpace'])})"
 
         returnString += "\n"
-        
+
         for skin in self.toBeRemovedSkins:
             returnString += f"<chocolate>{skin.name}</chocolate>\n"
         if len(self.toBeRemovedSkins) == 0:
             returnString +="- None -\n"
 
         returnString += "\n*********** Disk space analysis ***********\n\n"
-        
+
         beforeUpdateDiskSpace = diskSpaceStats["previouslyInstalledSkinsSpace"]
 
         toBeDownloaded = diskSpaceStats["toBeUpdatedSkinsSpace"] + diskSpaceStats["missingSkinsSpace"] + diskSpaceStats["toBeUpdatedCustomPhotos"]
@@ -74,7 +62,7 @@ class ScanResult:
             afterUpdateDiskSpace += diskSpaceStats["toBeRemovedSkinsSpace"]
 
         spaceDelta = afterUpdateDiskSpace - beforeUpdateDiskSpace
-        
+
 
         if self.IsSyncUpToDate():
             returnString += f"Disk space used by your skins : {bytesToString(beforeUpdateDiskSpace)}\n"
@@ -83,6 +71,18 @@ class ScanResult:
             returnString += f"Disk space used by your skins (before update) : {bytesToString(beforeUpdateDiskSpace)}\n"
             returnString += f"Disk space used by your unregistered skins ({unregistered_remove_message}): {bytesToString(diskSpaceStats['toBeRemovedSkinsSpace'])}\n"
             returnString += f"Disk space used by your skins (after update) : {bytesToString(afterUpdateDiskSpace)} ({bytesToString(spaceDelta, forceSign=True)})"
+
+        returnString += f"\n\nMissing skins ({bytesToString(diskSpaceStats['missingSkinsSpace'])}) :\n"
+        for skin in self.missingSkins:
+            returnString += f"<blue>{skin.name()}</blue>\n"
+        if len(self.missingSkins) == 0:
+            returnString +="- None -\n"
+
+        returnString += f"\nTo be updated skins ({bytesToString(diskSpaceStats['toBeUpdatedSkinsSpace'])}) :\n"
+        for skin in self.toBeUpdatedSkins:
+            returnString += f"<blue>{skin.name()}</blue>\n"
+        if len(self.toBeUpdatedSkins) == 0:
+            returnString +="- None -\n"
         
         
         returnString += "\n\n<bold>*************** Scan result ***************</bold>\n\n"
@@ -98,10 +98,6 @@ class ScanResult:
         if len(self.missingSkins) != 0:
             return False
         if len(self.toBeUpdatedSkins) != 0:
-            return False
-        if getConf("autoRemoveUnregisteredSkins") and len(self.toBeRemovedSkins) != 0:
-            return False
-        if len(self.toBeUpdatedCockpitNotes) > 0:
             return False
         return True
 
@@ -258,6 +254,6 @@ def scanAll():
     scanResult = scanSkins()
     if customPhotoSyncIsActive():
         scanResult.toBeUpdatedCockpitNotes = scanCustomPhotos()
-    MessageBrocker.emitProgress(1.0) #TEMP PROGRESS
+    MessageBrocker.emitProgress(0)
     MessageBrocker.emitConsoleMessage("SCAN FINISHED")
     return scanResult

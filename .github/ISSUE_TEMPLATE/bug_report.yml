@@ -1,0 +1,59 @@
+name: Bug report
+description: Report something that's broken or behaving unexpectedly.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in as much of the
+        form as you can — the log file is especially helpful.
+  - type: input
+    id: version
+    attributes:
+      label: TBASSync version
+      description: Shown in the app title bar, or from file properties of `TBASSync.exe`.
+      placeholder: "e.g. 9"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: "e.g. Windows 11 23H2"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Click …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: |
+        Paste the tail of `%APPDATA%\TBASSync\TBASSync.log`, or drag the file
+        into this field. Redact anything sensitive.
+      render: text
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Sanity checks
+      options:
+        - label: I extracted the zip before running `TBASSync.exe` (not running it from inside the zip).
+          required: true
+        - label: I'm on the latest release.
+          required: false

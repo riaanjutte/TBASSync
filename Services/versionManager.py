@@ -6,7 +6,7 @@ from packaging.version import Version
 #Change version here when preparing a new release
 currentVersion = 9
 
-GITHUB_REPO_URL = "https://api.github.com/repos/RaphED/IL2GB-HSDSync"
+GITHUB_REPO_URL = "https://api.github.com/repos/riaanjutte/TBASSync"
 
 def getCurrentVersion():
     return currentVersion

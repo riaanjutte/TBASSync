@@ -4,16 +4,28 @@ import string
 import winreg
 from pathlib import Path
 
-# Path to the configuration file
-config_file = 'HSDSync-config.json'
+from Services.paths import getUserDataFilePath
+
+# File name of the configuration file (on disk it lives in the user data dir)
+config_file_name = 'TBASSync-config.json'
+
+
+def config_file_path():
+    """Absolute path to the configuration file (inside the user data dir when frozen)."""
+    return getUserDataFilePath(config_file_name)
+
+
+# Back-compat alias: existing code references the module-level `config_file`.
+# Keep the name but make it resolve to the absolute path each time via a
+# module-level call so the lazy user-data-dir creation still happens.
+config_file = config_file_path()
 
 # Default values for the configuration file
 default_config = {
     "IL2GBGameDirectory": "D:\\IL-2 Sturmovik Battle of Stalingrad",
     "autoRemoveUnregisteredSkins": False,
     "cockpitNotesMode": "noSync",
-    "applyCensorship": False,
-    "displayCollectionsIcons": False
+    "applyCensorship": False
 }
 
 cockpitNotesModes = {
@@ -138,27 +150,21 @@ def _search_in_directory(directory, exe_name='Il-2.exe', max_depth=4):
         pass
     return None
 
-def tryToFindIL2Path(exe_name='Il-2.exe'):
-    """
-    Try to find IL-2 Sturmovik installation path using optimized search:
-    1. Check Steam registry and known Steam libraries
-    2. Check common installation directories
-    3. As last resort, search all drives (limited depth)
-    """
-    
-    # Priority 1: Check Steam registry and libraries
+def tryToFindIL2PathViaSteam(exe_name='Il-2.exe'):
+    """Find IL-2 via Steam registry and Steam library folders only (fast)."""
     steam_path = _check_steam_registry()
     if steam_path:
         steam_libraries = _get_steam_library_folders(steam_path)
         for library in steam_libraries:
-            # Check in steamapps/common folder
             common_path = os.path.join(library, "steamapps", "common")
             if os.path.exists(common_path):
                 result = _search_in_directory(common_path, exe_name, max_depth=3)
                 if result:
                     return os.path.normpath(result)
-    
-    # Priority 2: Check common installation directories
+    return None
+
+def tryToFindIL2PathBroadSearch(exe_name='Il-2.exe'):
+    """Search common install dirs and all drives (slower, for non-Steam installs)."""
     drives = [drive + ':\\' for drive in string.ascii_uppercase if os.path.exists(drive + ':')]
     common_dirs = [
         "Program Files (x86)\\Steam\\steamapps\\common",
@@ -167,7 +173,7 @@ def tryToFindIL2Path(exe_name='Il-2.exe'):
         "Games",
         "SteamLibrary\\steamapps\\common"
     ]
-    
+
     for drive in drives:
         for common_dir in common_dirs:
             full_path = os.path.join(drive, common_dir)
@@ -175,15 +181,20 @@ def tryToFindIL2Path(exe_name='Il-2.exe'):
                 result = _search_in_directory(full_path, exe_name, max_depth=3)
                 if result:
                     return os.path.normpath(result)
-    
-    # Priority 3: Search root of each drive (limited depth as last resort)
+
     for drive in drives:
-        # Only search at limited depth to avoid scanning entire system
         result = _search_in_directory(drive, exe_name, max_depth=2)
         if result:
             return os.path.normpath(result)
-    
-    return None  # Return None if the file was not found
+
+    return None
+
+def tryToFindIL2Path(exe_name='Il-2.exe'):
+    """Find IL-2 using all strategies: Steam first, then broad search."""
+    found = tryToFindIL2PathViaSteam(exe_name)
+    if found:
+        return found
+    return tryToFindIL2PathBroadSearch(exe_name)
 
 def customPhotoSyncIsActive():
     return getConf("cockpitNotesMode") != "noSync"
