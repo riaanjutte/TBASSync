@@ -3,11 +3,12 @@ from tkinter import ttk
 
 
 class ActionPanel:
-    STATE_LOADING    = "loading"
-    STATE_SCANNING   = "scanning"
-    STATE_UP_TO_DATE = "up_to_date"
-    STATE_UPDATES    = "updates_available"
-    STATE_SYNCING    = "syncing"
+    STATE_LOADING            = "loading"
+    STATE_SCANNING           = "scanning"
+    STATE_UP_TO_DATE         = "up_to_date"
+    STATE_UPDATES            = "updates_available"
+    STATE_SYNCING            = "syncing"
+    STATE_SOFTWARE_UPDATING  = "software_updating"
 
     def __init__(self, root: tk, scanCommand, syncCommand):
         self.root = root
@@ -61,4 +62,7 @@ class ActionPanel:
             self.recheckButton.configure(state="normal")
         elif state == self.STATE_SYNCING:
             self.primaryButton.configure(text="Updating\u2026", state="disabled", style="")
+            self.recheckButton.configure(state="disabled")
+        elif state == self.STATE_SOFTWARE_UPDATING:
+            self.primaryButton.configure(text="Updating app\u2026", state="disabled", style="")
             self.recheckButton.configure(state="disabled")

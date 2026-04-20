@@ -112,6 +112,12 @@ class StatusPanel:
                    title, TBASDarkTheme.ERROR,
                    "See the log file for details.")
 
+    def showSoftwareUpdating(self, version=None):
+        title = f"Downloading update {version}\u2026" if version else "Downloading update\u2026"
+        self._show("\u21ca", TBASDarkTheme.ACCENT_PRIMARY,
+                   title, TBASDarkTheme.FG_PRIMARY,
+                   "TBAS Sync will restart when the download finishes.")
+
     def showError(self, title="Something went wrong", detail="See the log file for details."):
         self._show("\u2717", TBASDarkTheme.ERROR,
                    title, TBASDarkTheme.ERROR, detail)

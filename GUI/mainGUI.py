@@ -1,3 +1,5 @@
+import os
+import sys
 import threading
 from tkinter import ttk
 import tkinter as tk
@@ -8,6 +10,7 @@ from PIL import Image, ImageTk
 import Services.loggingService as loggingService
 import Services.synchronizerService as SynchronizerService
 import Services.scannerService as ScannerService
+from Services import updateService
 from Services.messageBrocker import MessageBrocker
 from Services.loggingService import getLogFilePath
 from Services.configurationService import (
@@ -29,10 +32,15 @@ from GUI.customTheme import apply_theme, TBASDarkTheme
 
 class MainGUI:
 
-    def __init__(self, root, first_launch=False, startup_exception: Exception = None):
+    def __init__(self, root, first_launch=False, startup_exception: Exception = None,
+                 check_for_update=False, force_update=False, update_prerelease=False):
         self.root = root
         self._first_launch = first_launch
         self._startup_exception = startup_exception
+        self._check_for_update = check_for_update
+        self._force_update = force_update
+        self._update_prerelease = update_prerelease
+        self._software_updating = False
         self.root.iconbitmap(getRessourcePath("hsd.ico"))
 
         apply_theme(self.root)
@@ -85,6 +93,8 @@ class MainGUI:
 
         if self._startup_exception is not None:
             self.root.after(0, lambda: self._show_startup_exception(self._startup_exception))
+        elif self._check_for_update:
+            self.root.after(0, self.start_update_check_async)
         else:
             self.root.after(0, self.load_collections_async)
 
@@ -178,6 +188,94 @@ class MainGUI:
         else:
             self._logo_label.configure(image=self._logo_photo)
             self._logo_spin_frames = None
+
+    # ── APP AUTO-UPDATE ──────────────────────────────────────────────────────
+
+    def start_update_check_async(self):
+        self.lock_components_actions()
+        self.actionPanel.set_state(ActionPanel.STATE_LOADING)
+        self.statusPanel.showLoading()
+        threading.Thread(target=self._update_check_worker, daemon=True).start()
+
+    def _update_check_worker(self):
+        try:
+            release_info = updateService.checkForUpdate(
+                prerelease=self._update_prerelease,
+                force=self._force_update,
+            )
+        except Exception as e:
+            loggingService.error(e)
+            release_info = None
+        self._safe_after(lambda: self._on_update_check_done(release_info))
+
+    def _on_update_check_done(self, release_info):
+        # No update (or check failed — offline users still get the app): continue
+        # with the normal startup path.
+        if release_info is None:
+            self.load_collections_async()
+            return
+        self._start_software_update_download(release_info)
+
+    def _start_software_update_download(self, release_info):
+        self._software_updating = True
+        version = release_info.get("tag_name")
+        self.lock_components_actions()
+        self.actionPanel.set_state(ActionPanel.STATE_SOFTWARE_UPDATING)
+        self.statusPanel.showSoftwareUpdating(version)
+        MessageBrocker.emitProgress(0.0)
+        threading.Thread(
+            target=self._update_download_worker,
+            args=(release_info,),
+            daemon=True,
+        ).start()
+
+    def _update_download_worker(self, release_info):
+        try:
+            new_exe_path = updateService.downloadReleaseAsset(
+                release_info,
+                updateService.exe_file_name,
+                progress_callback=MessageBrocker.emitProgress,
+            )
+        except Exception as e:
+            loggingService.error(e)
+            self._safe_after(self._on_update_download_failed)
+            return
+        self._safe_after(lambda: self._on_update_download_complete(new_exe_path))
+
+    def _on_update_download_complete(self, new_exe_path):
+        try:
+            current_exe = os.path.abspath(sys.executable)
+            updateService.handoffToUpdaterChild(new_exe_path, current_exe)
+        except Exception as e:
+            loggingService.error(e)
+            self._on_update_download_failed()
+            return
+        MessageBrocker.emitProgressSuccess()
+        # Close this window; the updater child (now running) will relaunch the
+        # replaced exe. A small delay lets the user see the bar hit 100% green.
+        self.root.after(400, self.root.destroy)
+
+    def _on_update_download_failed(self):
+        self._software_updating = False
+        MessageBrocker.emitProgress(0.0)
+        self.statusPanel.showError(
+            "Update failed",
+            "Proceeding with the current version.",
+        )
+        # Give the user a moment to read the error, then resume normally.
+        self.root.after(2500, self.load_collections_async)
+
+    def _safe_after(self, fn):
+        """Schedule fn on the Tk main thread, safe against a destroyed root.
+
+        Workers may finish after the user has closed the window; calling
+        `after` on a dead root raises TclError.
+        """
+        try:
+            if self.root.winfo_exists():
+                self.root.after(0, fn)
+        except tk.TclError:
+            pass
 
     # ── COMPONENT LISTENERS ──────────────────────────────────────────────────
 
@@ -347,13 +445,19 @@ def open_link_TBASDiscord():
 
 # ── ENTRY POINT ──────────────────────────────────────────────────────────────
 
-def runMainGUI():
+def runMainGUI(check_for_update=False, force_update=False, prerelease=False):
     cleanTemporaryFolder()
     first_launch = not configurationFileExists()
     if first_launch:
         generateConfFile()
     root = tk.Tk()
-    mainGUI = MainGUI(root, first_launch=first_launch)
+    mainGUI = MainGUI(
+        root,
+        first_launch=first_launch,
+        check_for_update=check_for_update,
+        force_update=force_update,
+        update_prerelease=prerelease,
+    )
     root.mainloop()
 
 
