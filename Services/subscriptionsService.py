@@ -1,10 +1,12 @@
 import requests
 
 import Services.loggingService as loggingService
+from Services.configurationService import getConf
 from Services.remoteService import RemoteSkin
 from Services.messageBrocker import MessageBrocker
 
 HARDCODED_COLLECTION_API_URL = "https://hsd-online.net/api/skinsCollections/5"
+FRIENDS_OF_TBAS_COLLECTION_API_URL = "https://hsd-online.net/api/skinsCollections/91"
 browser_collection_URL = "https://hsd-online.net/collections/[collection_id]"
 
 
@@ -53,10 +55,29 @@ class SubscribedCollection:
 
 
 subscription_list: list[SubscribedCollection] = []
+_cached_urls: tuple[str, ...] = ()
+
+
+def _desiredSubscriptionURLs() -> tuple[str, ...]:
+    urls = [HARDCODED_COLLECTION_API_URL]
+    if getConf("syncFriendsOfTBAS"):
+        urls.append(FRIENDS_OF_TBAS_COLLECTION_API_URL)
+    return tuple(urls)
+
+
+def invalidateSubscriptionsCache() -> None:
+    global _cached_urls
+    subscription_list.clear()
+    _cached_urls = ()
 
 
 def getAllSubcriptions() -> list[SubscribedCollection]:
-    if len(subscription_list) == 0:
-        subscription_list.append(SubscribedCollection(HARDCODED_COLLECTION_API_URL))
+    global _cached_urls
+    desired = _desiredSubscriptionURLs()
+    if _cached_urls != desired:
+        subscription_list.clear()
+        for url in desired:
+            subscription_list.append(SubscribedCollection(url))
+        _cached_urls = desired
 
     return subscription_list
