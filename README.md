@@ -9,6 +9,8 @@ which is itself a fork of the original
 [Inter-Squadrons Skins Synchronizer (ISS)](https://github.com/RaphED/IL2GB-inter-squadrons-skins-synchronizer)
 by RaphED, adapted for HSD v2 by IRRE_Fizz and Haluter.
 
+![TBAS Sync main window](docs/screenshot-main.png)
+
 ## Installation
 
 Grab the latest `TBASSync.zip` from the
