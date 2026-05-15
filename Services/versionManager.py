@@ -32,16 +32,6 @@ def getLastRelease(draft = False, prerelease = False):
                 lastRelease = release
 
     return lastRelease
-    
-def isCurrentVersionUpToDate(draft = False, prerelease = False):
-    release_info = getLastRelease(draft, prerelease)
-    #special case where there is no current released version
-    if release_info is None:
-        return True
-    latest_version = release_info["tag_name"]
-    current_version = Version(f"{getCurrentVersion()}")
-    remote_version = Version(latest_version)
-    return remote_version <= current_version
 
 #Direct access to provide the current version when calling directly that file (used for the build script)
 if __name__ == "__main__":
