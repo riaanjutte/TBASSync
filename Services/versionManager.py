@@ -4,7 +4,7 @@ from packaging.version import Version
 
 #This is THE reference for the current version
 #Change version here when preparing a new release
-currentVersion = 11
+currentVersion = 12
 
 GITHUB_REPO_URL = "https://api.github.com/repos/riaanjutte/TBASSync"
 
