@@ -33,4 +33,4 @@ def warning(e):
     logging.warning(e)
 
 def error(e):
-    logging.error(e)
+    logging.error(e, exc_info=isinstance(e, BaseException))

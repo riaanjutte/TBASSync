@@ -40,5 +40,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version='build\\TBASSync_versionFile',
-    icon=['Resources\\hsd.ico'],
+    icon=['Resources\\TBAS.ico'],
 )

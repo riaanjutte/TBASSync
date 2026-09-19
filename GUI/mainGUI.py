@@ -41,7 +41,7 @@ class MainGUI:
         self._force_update = force_update
         self._update_prerelease = update_prerelease
         self._software_updating = False
-        self.root.iconbitmap(getRessourcePath("hsd.ico"))
+        self.root.iconbitmap(getRessourcePath("TBAS.ico"))
 
         apply_theme(self.root)
 
