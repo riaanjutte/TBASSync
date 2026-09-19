@@ -86,8 +86,12 @@ class StatusPanel:
             title = f"{self._format_counts(skins, cockpit)} updated successfully"
         else:
             title = "Update complete"
+        detail = ""
+        if cockpit:
+            detail = ("Cockpit photos only show in the cockpit during flight \u2014 "
+                      "the Plane Settings preview always shows the default photo.")
         self._show("\u2713", TBASDarkTheme.SUCCESS,
-                   title, TBASDarkTheme.SUCCESS)
+                   title, TBASDarkTheme.SUCCESS, detail)
 
     @staticmethod
     def _format_counts(skins: int, cockpit: int) -> str:

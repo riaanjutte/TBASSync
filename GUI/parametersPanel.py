@@ -62,7 +62,9 @@ class ParametersPanel:
             width=60,
             font=("Bahnschrift Light Condensed", 14),
         )
-        Tooltip(self.cokpitNote_dropdown, text="Select the cockpit photos collection - some include notes on the plane's operational limits")
+        Tooltip(self.cokpitNote_dropdown, text="Select the cockpit photos collection - some include notes on the plane's operational limits.\n"
+                                                    "In-game, set Plane Settings > Photo to 'Photo'. The preview there always shows the\n"
+                                                    "default photo; the synced one only appears in the cockpit during flight.")
         self.cokpitNote_dropdown.set(cockpitNotesModes[getConf("cockpitNotesMode")])
         self.cokpitNote_dropdown.pack(side=tk.LEFT, padx=5)
         self.cokpitNote_dropdown.bind("<<ComboboxSelected>>", self.on_cokpitNote_dropdown_change)

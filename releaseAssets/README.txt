@@ -91,6 +91,12 @@ TROUBLESHOOTING
     "IL2GBGameDirectory" in TBASSync-config.json, or delete the config file
     entirely to re-run first-launch detection.
 
+- "I can't see my cockpit photos in-game"
+    In the mission briefing, open Plane Settings, go to the photo tab and
+    choose "Photo". The preview on that screen always shows the game's
+    default photo — the synced one only appears in the cockpit once you're
+    flying.
+
 - "I want to start over"
     Close the app, delete %APPDATA%\TBASSync\, and relaunch.
 
