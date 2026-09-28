@@ -3,6 +3,7 @@ import requests
 import Services.loggingService as loggingService
 from Services.configurationService import getConf
 from Services.remoteService import RemoteSkin
+from Services.filesService import HTTP_TIMEOUT
 from Services.messageBrocker import MessageBrocker
 
 HARDCODED_COLLECTION_API_URL = "https://hsd-online.net/api/skinsCollections/5"
@@ -33,7 +34,7 @@ class SubscribedCollection:
             raise e
 
     def loadDataFromURL(self):
-        response = requests.get(self.collectionURL)
+        response = requests.get(self.collectionURL, timeout=HTTP_TIMEOUT)
         if response.status_code == 200:
             raw_json_data = response.json()
 

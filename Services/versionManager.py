@@ -8,11 +8,15 @@ currentVersion = 12
 
 GITHUB_REPO_URL = "https://api.github.com/repos/riaanjutte/TBASSync"
 
+# Same value as filesService.HTTP_TIMEOUT. Not imported from there because the
+# build script runs this file directly, where the Services package isn't importable.
+HTTP_TIMEOUT = (10, 60)
+
 def getCurrentVersion():
     return currentVersion
 
 def getReleases():
-    response = requests.get(f"{GITHUB_REPO_URL}/releases")
+    response = requests.get(f"{GITHUB_REPO_URL}/releases", timeout=HTTP_TIMEOUT)
     if response.status_code == 200:
         return response.json()
     else:

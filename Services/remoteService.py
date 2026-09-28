@@ -2,7 +2,7 @@ import requests
 import json
 
 from Services.configurationService import getConf, cockpitNotesModes
-from Services.filesService import downloadFile
+from Services.filesService import downloadFile, HTTP_TIMEOUT
 from Services.messageBrocker import MessageBrocker
 
 main_api_URL = "https://hsd-online.net/api"
@@ -87,7 +87,7 @@ class RemoteCollection:
     
 def getRemoteCollectionsCatalog() -> list[RemoteCollection]:
     try:
-        response = requests.get(collections_catalog_URL)
+        response = requests.get(collections_catalog_URL, timeout=HTTP_TIMEOUT)
 
          # Check if the request was successful (status code 200)
         if response.status_code == 200:
@@ -132,7 +132,7 @@ def getCustomPhotosList():
         return []
 
     try:
-        response = requests.get(catalogURL)
+        response = requests.get(catalogURL, timeout=HTTP_TIMEOUT)
 
          # Check if the request was successful (status code 200)
         if response.status_code == 200:

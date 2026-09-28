@@ -35,10 +35,16 @@ def getSkinsList() -> list[LocalSkin]:
     _progress = 0.1
     _estimated_total_progress = 0.8
     MessageBrocker.emitProgress(_progress) #TEMP PROGRESS
-    
-    _progress_step = (_estimated_total_progress - _progress) / len(list(os.walk(skinsDirectory)))
 
-    for root, dirs, files in os.walk(skinsDirectory):
+    #no skins folder yet (fresh install) : nothing installed, every subscribed skin is missing
+    if not os.path.isdir(skinsDirectory):
+        loggingService.info(f"Skins directory {skinsDirectory} does not exist yet")
+        return skinList
+
+    skinsDirectoryWalk = list(os.walk(skinsDirectory))
+    _progress_step = (_estimated_total_progress - _progress) / len(skinsDirectoryWalk)
+
+    for root, dirs, files in skinsDirectoryWalk:
         _progress += _progress_step #TEMP PROGRESS
         MessageBrocker.emitProgress(_progress) #TEMP PROGRESS
 
@@ -89,8 +95,8 @@ def getSkinsList() -> list[LocalSkin]:
             filestats = os.stat(fileFullPath)
 
             for index, skin in enumerate(skinList):
-                #check if the secondary file matches the main file
-                if skin.dds_files[0].fileName[:-4] == ddsSecondaryFileName[:-6]:
+                #check if the secondary file matches the main file of the same aircraft
+                if skin.game_asset_code == game_asset_code and skin.dds_files[0].fileName[:-4] == ddsSecondaryFileName[:-6]:
                     skinList[index].dds_files.append(
                         ddsFile(
                             fileName=ddsSecondaryFileName,

@@ -10,6 +10,11 @@ from Services.paths import getUserDataDir
 
 temporaryFolder = "temp"
 
+# (connect, read) timeout in seconds for every HTTP call. The read timeout is
+# the max gap between bytes, not the total transfer time, so large streamed
+# downloads are unaffected; it only stops a stalled server from hanging forever.
+HTTP_TIMEOUT = (10, 60)
+
 def getTempFolderFullPath():
     # Temp downloads (including the new exe used during self-update) live inside
     # the user data dir so they survive across the old-exe → updater → new-exe
@@ -44,7 +49,7 @@ def downloadFile(url, expectedMD5 = None, prefix_with_uuid=False, destination_fi
         tempDir = os.path.join(tempDir, temp_subdir)
     os.makedirs(tempDir, exist_ok=True)
 
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, timeout=HTTP_TIMEOUT)
     response.raise_for_status()  # Raise an exception for HTTP errors
 
     file_name = os.path.basename(url)
