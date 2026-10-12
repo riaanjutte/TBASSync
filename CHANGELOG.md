@@ -7,6 +7,11 @@ integer version numbers that match `Services/versionManager.py`.
 ## [Unreleased]
 
 ### Added
+- Skin preview strip: after a scan, previews of every skin to be downloaded
+  or updated scroll right → left (tagged NEW / UPDATE); during an update each
+  skin's preview slides in as its download starts, with a progress bar and a
+  ✓ / ✗ when it finishes. Hidden when nothing needs updating. Default window
+  height is now 560 px to make room for it.
 - `.github/` issue templates, PR template, and PyInstaller build workflow.
 - `CHANGELOG.md`.
 

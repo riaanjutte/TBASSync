@@ -36,21 +36,41 @@ def updateRegisteredSkins(scanResult: ScanResult, progress_base: float = 0.0) ->
     skin_failed: dict = {skin: False for skin in skinsToSync}
     skin_pending: dict = {skin: 0 for skin in skinsToSync}
     skin_temp_paths: dict = {skin: [] for skin in skinsToSync}
-    for skin, _ in tasks:
+    skin_file_indexes: dict = {skin: [] for skin in skinsToSync}
+    for idx, (skin, _) in enumerate(tasks):
         skin_pending[skin] += 1
+        skin_file_indexes[skin].append(idx)
+    skin_started: set = set()
+    skin_last_emitted: dict = {}
     lock = threading.Lock()
 
     def update_total_bar():
         total = sum(file_fractions) / totalFiles
         MessageBrocker.emitProgress(progress_base + total * progress_span)
 
-    def make_byte_callback(file_index):
+    def emit_skin_progress(skin):
+        indexes = skin_file_indexes[skin]
+        fraction = sum(file_fractions[i] for i in indexes) / len(indexes)
+        # Byte callbacks fire every 8 KB; only forward 1% steps to the UI.
+        with lock:
+            if fraction - skin_last_emitted.get(skin, 0.0) < 0.01 and fraction < 1.0:
+                return
+            skin_last_emitted[skin] = fraction
+        MessageBrocker.emitSkinSyncEvent("progress", skin, fraction)
+
+    def make_byte_callback(file_index, skin):
         def cb(byte_fraction):
             file_fractions[file_index] = byte_fraction
             update_total_bar()
+            emit_skin_progress(skin)
         return cb
 
     def download_one(file_index, skin, dds):
+        with lock:
+            first_file_of_skin = skin not in skin_started
+            skin_started.add(skin)
+        if first_file_of_skin:
+            MessageBrocker.emitSkinSyncEvent("started", skin)
         url = remoteService.skins_download_URL.replace("[path]", dds.path)
         # Each download gets its own temp subdir so parallel writes can't collide
         # when two skins share a destination_name.
@@ -59,7 +79,7 @@ def updateRegisteredSkins(scanResult: ScanResult, progress_base: float = 0.0) ->
             url=url,
             destination_file_name=dds.destination_name,
             expectedMD5=dds.md5,
-            progress_callback=make_byte_callback(file_index),
+            progress_callback=make_byte_callback(file_index, skin),
             temp_subdir=subdir,
         )
 
@@ -107,6 +127,7 @@ def updateRegisteredSkins(scanResult: ScanResult, progress_base: float = 0.0) ->
                     MessageBrocker.emitConsoleMessage(
                         f"<red>Skipping {skin.name()} install — some files failed to download</red>"
                     )
+                MessageBrocker.emitSkinSyncEvent("done", skin, ready_to_move)
 
     successUpdates = sum(1 for skin in skinsToSync if not skin_failed[skin])
     return totalSkins, successUpdates

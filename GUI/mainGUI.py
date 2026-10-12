@@ -25,6 +25,7 @@ from GUI.parametersPanel import ParametersPanel
 from GUI.statusPanel import StatusPanel
 from GUI.actionsPanel import ActionPanel
 
+from GUI.previewStrip import PreviewStrip, KIND_NEW, KIND_UPDATE
 from GUI.progressBar import ProgressBar
 from GUI.Components.clickableIcon import CliquableIcon
 from GUI.customTheme import apply_theme, TBASDarkTheme
@@ -46,8 +47,8 @@ class MainGUI:
         apply_theme(self.root)
 
         self.root.title("TBAS Sync v1.2")
-        self.root.geometry("900x500")
-        self.root.minsize(750, 420)
+        self.root.geometry("900x560")
+        self.root.minsize(750, 480)
 
         # ── HEADER ──────────────────────────────────────────────────────────
         self._build_header()
@@ -86,6 +87,14 @@ class MainGUI:
         bottom_main_frame.pack(side="bottom", fill="both", expand=True)
 
         self.statusPanel = StatusPanel(bottom_main_frame)
+
+        # ── PREVIEW STRIP: between status and footer, only packed while at
+        # least one skin is to be downloaded/updated ─────────────────────────
+        self._status_container = bottom_main_frame
+        self.previewStrip = PreviewStrip(self.root)
+        self._preview_strip_visible = False
+        self._sync_new_skin_ids = set()
+        MessageBrocker.registerSkinSyncHook(self._on_skin_sync_event)
 
         # State
         self.currentScanResult: SynchronizerService.ScanResult = None
@@ -363,8 +372,52 @@ class MainGUI:
 
     # ── SCAN & SYNC ──────────────────────────────────────────────────────────
 
+    # ── PREVIEW STRIP ────────────────────────────────────────────────────────
+
+    def _show_preview_strip(self):
+        if self._preview_strip_visible:
+            return
+        self._preview_strip_visible = True
+        self.previewStrip.pack(side="bottom", fill="x", before=self._status_container)
+        self.statusPanel.setCompact(True)
+
+    def _hide_preview_strip(self):
+        if not self._preview_strip_visible:
+            return
+        self._preview_strip_visible = False
+        self.previewStrip.pack_forget()
+        self.previewStrip.clear()
+        self.statusPanel.setCompact(False)
+
+    @staticmethod
+    def _preview_item(skin, kind):
+        return (skin.id(), skin.name(), kind, skin.preview_image_path())
+
+    def _show_scan_previews(self):
+        result = self.currentScanResult
+        if result is None or self._pendingSkinCount() == 0:
+            self._hide_preview_strip()
+            return
+        items = [self._preview_item(skin, KIND_NEW) for skin in result.missingSkins]
+        items += [self._preview_item(skin, KIND_UPDATE) for skin in result.toBeUpdatedSkins]
+        self._show_preview_strip()
+        self.previewStrip.show_pending(items)
+
+    def _on_skin_sync_event(self, event, skin, value):
+        # Called from download worker threads: only the strip's queue-based API is used here.
+        if event == "started":
+            kind = KIND_NEW if skin.id() in self._sync_new_skin_ids else KIND_UPDATE
+            self.previewStrip.skin_started(*self._preview_item(skin, kind))
+        elif event == "progress":
+            self.previewStrip.skin_progress(skin.id(), value)
+        elif event == "done":
+            self.previewStrip.skin_done(skin.id(), bool(value))
+
+    # ── SCAN & SYNC ──────────────────────────────────────────────────────────
+
     def start_scan(self):
         self.currentScanResult = None
+        self.root.after(0, self._hide_preview_strip)
         self.lock_components_actions()
         self.actionPanel.set_state(ActionPanel.STATE_SCANNING)
         self.statusPanel.showScanning()
@@ -386,6 +439,7 @@ class MainGUI:
             )
         else:
             self._refresh_status_from_scan()
+        self.root.after(0, self._show_scan_previews)
 
     def start_scan_async(self):
         threading.Thread(target=self.start_scan).start()
@@ -399,6 +453,11 @@ class MainGUI:
         self.lock_components_actions()
         self.actionPanel.set_state(ActionPanel.STATE_SYNCING)
         self.statusPanel.showSyncing(skins=skins_to_update, cockpit=cockpit_to_update)
+        if skins_to_update > 0:
+            self._sync_new_skin_ids = {skin.id() for skin in self.currentScanResult.missingSkins}
+            # Queued before updateAll() starts, so it is applied before any skin event.
+            self.previewStrip.start_sync()
+            self.root.after(0, self._show_preview_strip)
         try:
             skin_total, skin_success, cockpit_total, cockpit_success = \
                 SynchronizerService.updateAll(self.currentScanResult)

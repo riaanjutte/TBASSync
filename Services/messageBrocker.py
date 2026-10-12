@@ -6,6 +6,7 @@ class MessageBrocker:
         self.consoleMessageHooks = list[Callable[[str], Any]]()
         self.progressHooks = list[Callable[[float], Any]]()
         self.progressSuccessHooks = list[Callable[[], Any]]()
+        self.skinSyncHooks = list[Callable[[str, Any, Any], Any]]()
 
     #SINGLETON MANAGEMENT
     _instance = None
@@ -52,3 +53,16 @@ class MessageBrocker:
     def registerProgressSuccessHook(callback: Callable[[], Any]):
         brocker_instance = MessageBrocker.getSingletonInstance()
         brocker_instance.progressSuccessHooks.append(callback)
+
+    # --- PER-SKIN SYNC EVENTS (emitted from download worker threads)
+    # event: "started" (value None), "progress" (value 0..1), "done" (value True/False = success)
+    @staticmethod
+    def emitSkinSyncEvent(event: str, skin, value=None) -> None:
+       brocker_instance = MessageBrocker.getSingletonInstance()
+       for hook in brocker_instance.skinSyncHooks:
+           hook(event, skin, value)
+
+    @staticmethod
+    def registerSkinSyncHook(callback: Callable[[str, Any, Any], Any]):
+        brocker_instance = MessageBrocker.getSingletonInstance()
+        brocker_instance.skinSyncHooks.append(callback)

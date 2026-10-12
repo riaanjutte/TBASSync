@@ -44,6 +44,13 @@ class StatusPanel:
         self.actions_frame = tk.Frame(inner, bg=TBASDarkTheme.BG_DARKER)
         self.actions_frame.pack(pady=(10, 0))
 
+    def setCompact(self, compact: bool):
+        """Drop the big icon line so the text still fits above the preview strip."""
+        if compact:
+            self.icon_label.pack_forget()
+        elif not self.icon_label.winfo_manager():
+            self.icon_label.pack(pady=(0, 3), before=self.title_label)
+
     def _clear_actions(self):
         for child in self.actions_frame.winfo_children():
             child.destroy()

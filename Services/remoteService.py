@@ -61,6 +61,14 @@ class RemoteSkin:
         else:
             return self._json_raw_data["size_in_b_unrestricted"]
 
+    def preview_image_path(self) -> str | None:
+        """HSD file path of the first preview image of the variant that will be installed."""
+        variant = self.get_variant_regarding_censorship_configuration() or {}
+        images = variant.get("preview_images") or []
+        if not images:
+            return None
+        return images[0].get("path")
+
 class RemoteCollection:
     def __init__(self, json_raw_data: json) -> None:
         self._json_raw_data = json_raw_data
@@ -85,6 +93,12 @@ class RemoteCollection:
     def api_URL(self) -> str:
         return f"{main_api_URL}/skinsCollections/{self.id()}"
     
+def downloadSkinPreview(preview_path: str) -> bytes:
+    """Raw bytes of a skin preview image (HSD serves 960x540 JPEGs, ~160 KB)."""
+    response = requests.get(skins_download_URL.replace("[path]", preview_path), timeout=HTTP_TIMEOUT)
+    response.raise_for_status()
+    return response.content
+
 def getRemoteCollectionsCatalog() -> list[RemoteCollection]:
     try:
         response = requests.get(collections_catalog_URL, timeout=HTTP_TIMEOUT)
