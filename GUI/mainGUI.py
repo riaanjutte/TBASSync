@@ -28,6 +28,7 @@ from GUI.actionsPanel import ActionPanel
 from GUI.previewStrip import PreviewStrip, KIND_NEW, KIND_UPDATE
 from GUI.progressBar import ProgressBar
 from GUI.Components.clickableIcon import CliquableIcon
+from GUI.Components.uiDispatcher import UiDispatcher
 from GUI.customTheme import apply_theme, TBASDarkTheme
 
 
@@ -42,6 +43,9 @@ class MainGUI:
         self._force_update = force_update
         self._update_prerelease = update_prerelease
         self._software_updating = False
+        # Worker threads hand UI work to the Tk thread through this; they must
+        # never touch widgets (or call root.after) directly.
+        self.ui = UiDispatcher(self.root)
         self.root.iconbitmap(getRessourcePath("TBAS.ico"))
 
         apply_theme(self.root)
@@ -61,6 +65,7 @@ class MainGUI:
             top_main_frame,
             on_parameters_change=self.on_parameters_change,
             ask_broad_search=self._ask_broad_search_via_status,
+            ui=self.ui,
         )
 
         # ── PROGRESS BAR ─────────────────────────────────────────────────────
@@ -215,7 +220,7 @@ class MainGUI:
         except Exception as e:
             loggingService.error(e)
             release_info = None
-        self._safe_after(lambda: self._on_update_check_done(release_info))
+        self.ui.call(self._on_update_check_done, release_info)
 
     def _on_update_check_done(self, release_info):
         # No update (or check failed — offline users still get the app): continue
@@ -247,9 +252,9 @@ class MainGUI:
             )
         except Exception as e:
             loggingService.error(e)
-            self._safe_after(self._on_update_download_failed)
+            self.ui.call(self._on_update_download_failed)
             return
-        self._safe_after(lambda: self._on_update_download_complete(new_exe_path))
+        self.ui.call(self._on_update_download_complete, new_exe_path)
 
     def _on_update_download_complete(self, new_exe_path):
         try:
@@ -274,29 +279,18 @@ class MainGUI:
         # Give the user a moment to read the error, then resume normally.
         self.root.after(2500, self.load_collections_async)
 
-    def _safe_after(self, fn):
-        """Schedule fn on the Tk main thread, safe against a destroyed root.
-
-        Workers may finish after the user has closed the window; calling
-        `after` on a dead root raises TclError.
-        """
-        try:
-            if self.root.winfo_exists():
-                self.root.after(0, fn)
-        except tk.TclError:
-            pass
-
     # ── COMPONENT LISTENERS ──────────────────────────────────────────────────
 
     def load_collections_async(self):
+        self._on_collections_loading_start()
+
         def worker():
-            self.root.after(0, self._on_collections_loading_start)
             try:
                 getAllSubcriptions()
-                self.root.after(0, self._on_collections_loading_completed)
+                self.ui.call(self._on_collections_loading_completed)
             except Exception as e:
                 loggingService.error(e)
-                self.root.after(0, self._on_collections_loading_failed)
+                self.ui.call(self._on_collections_loading_failed)
         threading.Thread(target=worker).start()
 
     def _on_collections_loading_start(self):
@@ -415,19 +409,29 @@ class MainGUI:
 
     # ── SCAN & SYNC ──────────────────────────────────────────────────────────
 
-    def start_scan(self):
+    # The *_async methods run on the Tk thread: they update the UI, then start a
+    # worker thread that does only the scan/sync and reports back via self.ui.
+
+    def start_scan_async(self):
         self.currentScanResult = None
-        self.root.after(0, self._hide_preview_strip)
+        self._hide_preview_strip()
         self.lock_components_actions()
         self.actionPanel.set_state(ActionPanel.STATE_SCANNING)
         self.statusPanel.showScanning()
-        scan_crashed = False
+        threading.Thread(target=self._scan_worker).start()
+
+    def _scan_worker(self):
+        scan_result, scan_crashed = None, False
         try:
-            self.currentScanResult = ScannerService.scanAll()
+            scan_result = ScannerService.scanAll()
         except Exception as e:
             loggingService.error(e)
             MessageBrocker.emitProgress(0)
             scan_crashed = True
+        self.ui.call(self._on_scan_finished, scan_result, scan_crashed)
+
+    def _on_scan_finished(self, scan_result, scan_crashed):
+        self.currentScanResult = scan_result
         self.unlock_components_actions()
         self._refresh_action_state()
         if scan_crashed:
@@ -439,13 +443,11 @@ class MainGUI:
             )
         else:
             self._refresh_status_from_scan()
-        self.root.after(0, self._show_scan_previews)
+        self._show_scan_previews()
 
-    def start_scan_async(self):
-        threading.Thread(target=self.start_scan).start()
-
-    def start_synchronization(self):
-        if self.currentScanResult is None:
+    def start_synchronization_async(self):
+        scan_result = self.currentScanResult
+        if scan_result is None:
             loggingService.error("Sync launched with no scan result")
             return
         skins_to_update = self._pendingSkinCount()
@@ -454,23 +456,31 @@ class MainGUI:
         self.actionPanel.set_state(ActionPanel.STATE_SYNCING)
         self.statusPanel.showSyncing(skins=skins_to_update, cockpit=cockpit_to_update)
         if skins_to_update > 0:
-            self._sync_new_skin_ids = {skin.id() for skin in self.currentScanResult.missingSkins}
-            # Queued before updateAll() starts, so it is applied before any skin event.
+            self._sync_new_skin_ids = {skin.id() for skin in scan_result.missingSkins}
+            # Queued before the worker starts, so it is applied before any skin event.
             self.previewStrip.start_sync()
-            self.root.after(0, self._show_preview_strip)
+            self._show_preview_strip()
+        threading.Thread(target=self._sync_worker, args=(scan_result,)).start()
+
+    def _sync_worker(self, scan_result):
         try:
-            skin_total, skin_success, cockpit_total, cockpit_success = \
-                SynchronizerService.updateAll(self.currentScanResult)
+            totals = SynchronizerService.updateAll(scan_result)
         except Exception as e:
             loggingService.error(e)
-            self.currentScanResult = None
-            self.unlock_components_actions()
-            self._refresh_action_state()
-            self.statusPanel.showError(
-                "Unexpected error during update",
-                "See the log file for details.",
-            )
+            self.ui.call(self._on_sync_crashed)
             return
+        self.ui.call(self._on_sync_finished, *totals)
+
+    def _on_sync_crashed(self):
+        self.currentScanResult = None
+        self.unlock_components_actions()
+        self._refresh_action_state()
+        self.statusPanel.showError(
+            "Unexpected error during update",
+            "See the log file for details.",
+        )
+
+    def _on_sync_finished(self, skin_total, skin_success, cockpit_total, cockpit_success):
         self.currentScanResult = None
         self.unlock_components_actions()
         self._refresh_action_state()
@@ -485,9 +495,6 @@ class MainGUI:
                 cockpit_failed=cockpit_failed,
                 cockpit_total=cockpit_total,
             )
-
-    def start_synchronization_async(self):
-        threading.Thread(target=self.start_synchronization).start()
 
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────

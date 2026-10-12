@@ -202,18 +202,24 @@ def runHeadlessUpdater():
         ).pack(expand=True, fill="both")
         tk.Frame(root, bg=accent, height=2).pack(side="bottom", fill="x")
 
+        finished = threading.Event()
+
         def worker():
             try:
                 _runUpdateTask()
             finally:
-                # Hand control back to the Tk thread to destroy the root —
-                # calling destroy() from a worker thread isn't safe.
-                try:
-                    root.after(0, root.destroy)
-                except tk.TclError:
-                    pass
+                finished.set()
+
+        # The worker never touches Tk (not even root.after): the Tk thread polls
+        # the event and destroys the window itself.
+        def close_when_finished():
+            if finished.is_set():
+                root.destroy()
+            else:
+                root.after(100, close_when_finished)
 
         threading.Thread(target=worker, daemon=True).start()
+        root.after(100, close_when_finished)
         root.mainloop()
     except Exception as e:
         # Tk init failed (e.g. no display). Run the task headlessly so the

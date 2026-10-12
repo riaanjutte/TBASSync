@@ -5,16 +5,18 @@ import threading
 from PIL import Image, ImageTk
 
 from GUI.Components.tooltip import Tooltip
+from GUI.Components.uiDispatcher import UiDispatcher
 from Services.configurationService import getConf, update_config_param, cockpitNotesModes, checkIL2InstallPath, tryToFindIL2PathViaSteam, tryToFindIL2PathBroadSearch
 from Services.filesService import getIconPath
 from Services.messageBrocker import MessageBrocker
 from Services.subscriptionsService import invalidateSubscriptionsCache
 
 class ParametersPanel:
-    def __init__(self, root: tk, on_parameters_change=None, ask_broad_search=None):
+    def __init__(self, root: tk, on_parameters_change=None, ask_broad_search=None, ui: UiDispatcher = None):
         self.root = root
         self.on_parameters_change = on_parameters_change
         self._external_ask_broad_search = ask_broad_search
+        self._ui = ui if ui is not None else UiDispatcher(root)
 
         params_label_frame = ttk.Frame(root, padding=(5, 5))
         params_label_frame.pack(fill="both", padx=2, pady=2)
@@ -221,7 +223,8 @@ class ParametersPanel:
 
     def _broad_search_thread(self):
         found = tryToFindIL2PathBroadSearch()
-        self.root.after(3000, lambda: self._on_broad_search_done(found))
+        # Worker thread: hand back to the Tk thread, which keeps the original 3 s delay.
+        self._ui.call(self.root.after, 3000, lambda: self._on_broad_search_done(found))
 
     def _on_broad_search_done(self, found):
         if getattr(self, "_search_dialog", None) is not None:

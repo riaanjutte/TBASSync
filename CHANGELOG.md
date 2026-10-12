@@ -25,6 +25,12 @@ integer version numbers that match `Services/versionManager.py`.
 - Various GUI / theming / scanner cleanups carried forward from the rebrand
   branch.
 
+### Fixed
+- Scan, sync, update check, collection loading and the IL-2 folder search no
+  longer touch Tk widgets from background threads (could freeze or crash the
+  window with "main thread is not in main loop"); UI work is handed to the Tk
+  thread through `GUI/Components/uiDispatcher.py`.
+
 ### Removed
 - Collection-search and collection-URL modals (and their panel) — out of
   scope for the rebranded single-site use case.
