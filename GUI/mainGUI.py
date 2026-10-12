@@ -50,7 +50,7 @@ class MainGUI:
 
         apply_theme(self.root)
 
-        self.root.title("TBAS Sync v1.2")
+        self.root.title("TBAS Sync v1.3")
         self.root.geometry("900x560")
         self.root.minsize(750, 480)
 
