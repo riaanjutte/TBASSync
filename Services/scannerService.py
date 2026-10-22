@@ -253,7 +253,12 @@ def scanAll():
     
     scanResult = scanSkins()
     if customPhotoSyncIsActive():
-        scanResult.toBeUpdatedCockpitNotes = scanCustomPhotos()
+        # A broken cockpit-photo source must not block skin sync (the IRRE catalogs went 404 in Oct 2026).
+        try:
+            scanResult.toBeUpdatedCockpitNotes = scanCustomPhotos()
+        except Exception as e:
+            loggingService.error(e)
+            MessageBrocker.emitConsoleMessage("Cockpit notes catalog unavailable, skipping cockpit photos.")
     MessageBrocker.emitProgress(0)
     MessageBrocker.emitConsoleMessage("SCAN FINISHED")
     return scanResult
