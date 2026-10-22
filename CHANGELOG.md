@@ -6,6 +6,11 @@ integer version numbers that match `Services/versionManager.py`.
 
 ## [Unreleased]
 
+## [14] - 2026-10-22
+
+### Fixed
+- Scans no longer fail with "Scan failed" when cockpit notes/photos are enabled: the IRRE cockpit photo catalogs are offline (HTTP 404), and that error used to abort the whole scan, blocking all skin updates. Cockpit photos are now skipped (and logged) while skins scan and update normally.
+
 ## [13] - 2026-10-12
 
 ### Added
