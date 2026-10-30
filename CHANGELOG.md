@@ -6,10 +6,13 @@ integer version numbers that match `Services/versionManager.py`.
 
 ## [Unreleased]
 
+## [15] - 2026-10-30
+
 ### Changed
 - TBAS Sync now runs as a system tray app. It checks for new or updated skins on launch and every 10 minutes, installs them silently, and shows a Windows notification when done (including when skins fail). The window starts hidden unless setup is needed; closing it hides it to the tray. Tray menu: Open, Check for skin updates now, Quit.
 - Only one instance can run at a time; launching it again says it's already running in the tray.
 - Starts automatically with Windows (per-user `Run` registry entry, refreshed on every launch so it follows the exe). Disable it in Task Manager > Startup apps.
+- Built with Python 3.14-compatible Pillow and PyInstaller.
 
 ## [14] - 2026-10-22
 
