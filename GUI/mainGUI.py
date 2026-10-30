@@ -20,7 +20,7 @@ from Services.configurationService import (
 )
 from Services.filesService import getRessourcePath, getIconPath, cleanTemporaryFolder
 
-from Services.subscriptionsService import getAllSubcriptions
+from Services.subscriptionsService import getAllSubcriptions, invalidateSubscriptionsCache
 from GUI.parametersPanel import ParametersPanel
 from GUI.statusPanel import StatusPanel
 from GUI.actionsPanel import ActionPanel
@@ -29,7 +29,10 @@ from GUI.previewStrip import PreviewStrip, KIND_NEW, KIND_UPDATE
 from GUI.progressBar import ProgressBar
 from GUI.Components.clickableIcon import CliquableIcon
 from GUI.Components.uiDispatcher import UiDispatcher
+from GUI.Components.trayIcon import TrayIcon
 from GUI.customTheme import apply_theme, TBASDarkTheme
+
+CHECK_INTERVAL_MS = 10 * 60 * 1000
 
 
 class MainGUI:
@@ -105,12 +108,52 @@ class MainGUI:
         self.currentScanResult: SynchronizerService.ScanResult = None
         self.pendingProcessing = False
 
+        # ── TRAY: the app lives in the system tray; closing the window only hides
+        # it. The window starts hidden unless the user has to act on something.
+        self._quit_after_sync = False
+        self._last_failure = None   # last failure notified, so a skin failing every check isn't re-notified
+        self.tray = TrayIcon(self.ui, on_open=self.show_window, on_check=self.check_now, on_quit=self.quit_app)
+        # After a startup error the app does nothing in the tray, so closing the window quits it.
+        self.root.protocol("WM_DELETE_WINDOW", self.quit_app if startup_exception is not None else self.root.withdraw)
+        if not (first_launch or startup_exception is not None or not checkIL2InstallPath()):
+            self.root.withdraw()
+
         if self._startup_exception is not None:
             self.root.after(0, lambda: self._show_startup_exception(self._startup_exception))
+            return
         elif self._check_for_update:
             self.root.after(0, self.start_update_check_async)
         else:
             self.root.after(0, self.load_collections_async)
+        self.root.after(CHECK_INTERVAL_MS, self._periodic_check)
+
+    # ── TRAY ─────────────────────────────────────────────────────────────────
+
+    def show_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def quit_app(self):
+        # A sync in progress keeps the process alive until its files are moved: keep the tray
+        # icon until then (the sync-finished handlers quit), or the app runs with no icon.
+        if self.actionPanel._state == ActionPanel.STATE_SYNCING:
+            self._quit_after_sync = True
+            self.root.withdraw()
+            return
+        self.tray.stop()
+        self.root.destroy()
+
+    def _periodic_check(self):
+        self.root.after(CHECK_INTERVAL_MS, self._periodic_check)
+        self.check_now()
+
+    def check_now(self):
+        """Re-download the collections (to see skins added or updated on HSD) and scan, unless busy."""
+        if self.actionPanel._state not in (ActionPanel.STATE_UP_TO_DATE, ActionPanel.STATE_UPDATES):
+            return
+        invalidateSubscriptionsCache()
+        self.start_scan_async()
 
     def _show_startup_exception(self, exception: Exception):
         self.lock_components_actions()
@@ -267,7 +310,7 @@ class MainGUI:
         MessageBrocker.emitProgressSuccess()
         # Close this window; the updater child (now running) will relaunch the
         # replaced exe. A small delay lets the user see the bar hit 100% green.
-        self.root.after(400, self.root.destroy)
+        self.root.after(400, self.quit_app)
 
     def _on_update_download_failed(self):
         self._software_updating = False
@@ -444,6 +487,9 @@ class MainGUI:
         else:
             self._refresh_status_from_scan()
         self._show_scan_previews()
+        # New or updated skins are synced silently, without waiting for "Update Now".
+        if not scan_crashed and self._pendingSkinCount() > 0:
+            self.start_synchronization_async()
 
     def start_synchronization_async(self):
         scan_result = self.currentScanResult
@@ -479,6 +525,11 @@ class MainGUI:
             "Unexpected error during update",
             "See the log file for details.",
         )
+        if self._last_failure != "crash":
+            self.tray.notify("TBAS Sync", "Skin update failed. See the log file for details.")
+        self._last_failure = "crash"
+        if self._quit_after_sync:
+            self.quit_app()
 
     def _on_sync_finished(self, skin_total, skin_success, cockpit_total, cockpit_success):
         self.currentScanResult = None
@@ -495,6 +546,17 @@ class MainGUI:
                 cockpit_failed=cockpit_failed,
                 cockpit_total=cockpit_total,
             )
+        if skin_failed:
+            if self._last_failure != skin_failed:
+                self.tray.notify("TBAS Sync", f"{skin_failed} of {skin_total} skins failed to update. "
+                                              "See the log file for details.")
+            self._last_failure = skin_failed
+        else:
+            self._last_failure = None
+            if skin_success:
+                self.tray.notify("TBAS Sync", f"{StatusPanel._format_counts(skin_success, 0)} updated.")
+        if self._quit_after_sync:
+            self.quit_app()
 
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────

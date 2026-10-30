@@ -9,6 +9,37 @@ import Services.updateService as updateService
 
 from GUI.mainGUI import runMainGUI, runMainGUIException
 
+
+def acquireSingleInstance():
+    """Named mutex so only one TBAS Sync (tray app) syncs into the skins folder.
+    Returns the handle (keep it alive for the process lifetime), or None if another instance runs."""
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    handle = kernel32.CreateMutexW(None, False, "Local\\TBASSync")
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        return None
+    return handle
+
+
+AUTOSTART_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def registerAutostart(exe_path):
+    """Start TBAS Sync with Windows via the per-user Run key. Rewritten on every launch so it
+    follows the exe if it is moved; the user can still disable it in Task Manager > Startup apps."""
+    import os
+    import tempfile
+    import winreg
+    from Services.filesService import getTempFolderFullPath
+    exe = os.path.normcase(os.path.abspath(exe_path))
+    for scratch in (tempfile.gettempdir(), getTempFolderFullPath()):
+        if exe.startswith(os.path.normcase(os.path.abspath(scratch)) + os.sep):
+            return  # throwaway copy (run from inside a zip, or the updater's temp exe)
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_KEY, 0, winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key, "TBASSync", 0, winreg.REG_SZ, f'"{os.path.abspath(exe_path)}"')
+
+
 ######### MAIN ###############
 if __name__ == "__main__":
 
@@ -47,6 +78,16 @@ if __name__ == "__main__":
         updateService.runHeadlessUpdater()
     #NORMAL MODE — mainGUI runs the update check/download in-window.
     else:
+        instance_mutex = acquireSingleInstance()
+        if instance_mutex is None:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, "TBAS Sync is already running in the system tray.", "TBAS Sync", 0x40)
+            sys.exit(0)
+        if getattr(sys, "frozen", False):   # dev runs would register python.exe
+            try:
+                registerAutostart(sys.executable)
+            except Exception as e:
+                loggingService.error(e)
         try:
             runMainGUI(
                 check_for_update=(not no_update),

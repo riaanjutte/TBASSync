@@ -22,6 +22,21 @@ INSTALLATION
    bin\game\Il-2.exe.
 
 
+RUNNING IN THE SYSTEM TRAY
+--------------------------
+TBAS Sync runs in the system tray (the icons next to the clock). It checks
+for new or updated skins when it starts and every 10 minutes, installs them
+without asking, and shows a Windows notification when it's done.
+
+It starts automatically when you sign in to Windows. To turn that off, open
+Task Manager > Startup apps, select TBAS Sync and click Disable.
+
+- Click the tray icon (or right-click > "Open TBAS Sync") to open the window.
+- Closing the window only hides it; TBAS Sync keeps running in the tray.
+- Right-click > "Check for skin updates now" to check immediately.
+- Right-click > "Quit" to stop it completely.
+
+
 WHERE YOUR SETTINGS ARE STORED
 ------------------------------
 TBAS Sync keeps its configuration, log file, and caches in:
@@ -47,8 +62,11 @@ first-launch setup.
 
 UNINSTALLING
 ------------
-1. Delete TBASSync.exe from wherever you put it.
-2. Delete the %APPDATA%\TBASSync\ folder to remove your settings, log, and
+1. Quit TBAS Sync from its tray icon.
+2. Remove it from Windows startup by running this in a Command Prompt:
+       reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v TBASSync /f
+3. Delete TBASSync.exe from wherever you put it.
+4. Delete the %APPDATA%\TBASSync\ folder to remove your settings, log, and
    caches.
 
 
@@ -98,7 +116,11 @@ TROUBLESHOOTING
     flying.
 
 - "I want to start over"
-    Close the app, delete %APPDATA%\TBASSync\, and relaunch.
+    Quit the app from the tray icon, delete %APPDATA%\TBASSync\, and relaunch.
+
+- "It says TBAS Sync is already running"
+    It is in the system tray. Click its tray icon to open the window. If the
+    icon is hidden, click the ^ arrow next to the clock.
 
 
 CREDITS
