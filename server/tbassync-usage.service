@@ -1,0 +1,18 @@
+[Unit]
+Description=TBAS Sync usage tracker
+After=network.target
+
+[Service]
+User=tbassync-usage
+WorkingDirectory=/var/lib/tbassync-usage
+ExecStart=/usr/bin/python3 /opt/tbassync-usage/usage_server.py serve
+Environment=TBASSYNC_USAGE_DB=/var/lib/tbassync-usage/usage.db
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tbassync-usage
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

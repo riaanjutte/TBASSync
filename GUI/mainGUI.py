@@ -10,7 +10,7 @@ from PIL import Image, ImageTk
 import Services.loggingService as loggingService
 import Services.synchronizerService as SynchronizerService
 import Services.scannerService as ScannerService
-from Services import updateService
+from Services import updateService, usageService
 from Services.messageBrocker import MessageBrocker
 from Services.loggingService import getLogFilePath
 from Services.configurationService import (
@@ -33,6 +33,7 @@ from GUI.Components.trayIcon import TrayIcon
 from GUI.customTheme import apply_theme, TBASDarkTheme
 
 CHECK_INTERVAL_MS = 10 * 60 * 1000
+USAGE_HEARTBEAT_MS = 24 * 60 * 60 * 1000
 
 
 class MainGUI:
@@ -126,6 +127,13 @@ class MainGUI:
         else:
             self.root.after(0, self.load_collections_async)
         self.root.after(CHECK_INTERVAL_MS, self._periodic_check)
+        usageService.ping("launch")
+        self.root.after(USAGE_HEARTBEAT_MS, self._usage_heartbeat)
+
+    def _usage_heartbeat(self):
+        # the tray app can run for weeks without a relaunch; this keeps "last used" current
+        self.root.after(USAGE_HEARTBEAT_MS, self._usage_heartbeat)
+        usageService.ping("heartbeat")
 
     # ── TRAY ─────────────────────────────────────────────────────────────────
 

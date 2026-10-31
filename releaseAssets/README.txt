@@ -49,6 +49,7 @@ you'll find:
     TBASSync-config.json   - your configuration
     TBASSync.log           - log file (attach this when reporting issues)
     TBASSync-hashes.json   - cached file checksums (safe to delete)
+    TBASSync-device.json   - anonymous usage ID (see USAGE STATISTICS)
     temp\                  - scratch downloads (safe to delete when closed)
 
 
@@ -93,6 +94,20 @@ parameters panel, or directly in the JSON file.
       swastikas) are replaced with neutral markings. Required in some
       countries. Controlled in the app by the "Restricted symbols" setting
       (Hide / Show originals).
+
+
+USAGE STATISTICS
+----------------
+To count how many people use TBAS Sync, the app sends a small anonymous
+message when it starts and once a day while it runs. It contains only:
+
+    - a random ID created on first launch (not linked to your PC, Windows
+      account, Steam or HSD account)
+    - the TBAS Sync version number
+    - the date TBAS Sync was first started on this PC
+
+Your IP address is not stored. To turn this off, open
+%APPDATA%\TBASSync\TBASSync-device.json and change "usageTracking" to false.
 
 
 TROUBLESHOOTING
