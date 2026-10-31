@@ -1,0 +1,27 @@
+# TBAS squadron page. Runs next to HSD, joins its Docker network so HSD's nginx
+# can proxy /tbas/ to it. Publishes no ports.
+name: tbas-site
+
+services:
+  tbas-site:
+    image: python:3.12-alpine
+    container_name: tbas-site
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    working_dir: /app
+    volumes:
+      - ./:/app:ro
+    command: ["python", "-u", "site_server.py"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    networks: [hsd]
+
+networks:
+  hsd:
+    external: true
+    name: il2gb-hsd-2_app-network
