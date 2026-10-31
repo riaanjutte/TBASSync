@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TBAS Sync Usage</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb; --border: rgba(11,11,11,0.10);
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --series-1: #2a78d6; --hover: rgba(11,11,11,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19; --border: rgba(255,255,255,0.10);
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --series-1: #3987e5; --hover: rgba(255,255,255,0.05);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --border: rgba(255,255,255,0.10);
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --series-1: #3987e5; --hover: rgba(255,255,255,0.05);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text-primary);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 12px; }
+  .updated { color: var(--text-muted); font-size: 12px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .tiles { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+  .tile .label { color: var(--text-secondary); font-size: 13px; }
+  .tile .value { font-size: 28px; font-weight: 600; margin-top: 2px; }
+  .tile.hero .value { font-size: 48px; line-height: 1.1; }
+  .charts { display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; margin-bottom: 12px; }
+  svg { display: block; width: 100%; overflow: visible; }
+  svg text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  svg .value-label { fill: var(--text-secondary); }
+  .bar { fill: var(--series-1); }
+  .hit:hover + .bar, .hit:focus + .bar { opacity: .82; }
+  .hit { fill: transparent; cursor: default; }
+  .hit:hover { fill: var(--hover); }
+  .empty { color: var(--text-muted); padding: 24px 0; text-align: center; }
+  #tip { position: fixed; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+         border-radius: 8px; padding: 6px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+         opacity: 0; transition: opacity .1s; z-index: 10; }
+  #tip b { font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  td.id { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .table-wrap { overflow-x: auto; }
+  .muted { color: var(--text-muted); }
+  .error { color: var(--text-secondary); border-left: 3px solid #d03b3b; padding-left: 10px; }
+  @media (max-width: 760px) {
+    .tiles { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .tile .value { font-size: 24px; }
+    .tile.hero { grid-column: 1 / -1; }
+    .charts { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>TBAS Sync usage</h1>
+    <span class="updated" id="updated">Loading…</span>
+  </header>
+  <div id="error" class="error" hidden></div>
+
+  <section class="tiles">
+    <div class="card tile hero"><div class="label">Devices</div><div class="value" id="t-total">–</div></div>
+    <div class="card tile"><div class="label">Active last 24 hours</div><div class="value" id="t-day">–</div></div>
+    <div class="card tile"><div class="label">Active last 7 days</div><div class="value" id="t-week">–</div></div>
+    <div class="card tile"><div class="label">Active last 30 days</div><div class="value" id="t-month">–</div></div>
+  </section>
+
+  <section class="charts">
+    <div class="card">
+      <h2>Versions in use</h2>
+      <p class="sub">Devices active in the last 30 days</p>
+      <div id="versions"></div>
+    </div>
+    <div class="card">
+      <h2>New devices per week</h2>
+      <p class="sub">By the week each device first reported</p>
+      <div id="weeks"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Devices</h2>
+    <p class="sub">Most recently used first. IDs are random and not linked to a person. Times in your local time zone.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Device</th><th class="num">Version</th><th>Installed</th><th>First seen</th><th>Last used</th><th class="num">Launches</th></tr></thead>
+        <tbody id="devices"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const tip = document.getElementById("tip");
+const fmtNum = n => n.toLocaleString();
+const fmtDate = ts => ts ? new Date(ts * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "–";
+const fmtDateTime = ts => new Date(ts * 1000).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const fmtWeek = iso => new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+
+function ago(ts, now) {
+  const s = now - ts;
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min ago";
+  if (s < 86400) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " d ago";
+}
+
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function niceMax(v) {
+  if (v <= 4) return Math.max(1, v);
+  const pow = 10 ** Math.floor(Math.log10(v));
+  return [1, 2, 2.5, 5, 10].map(m => m * pow).find(m => m >= v);
+}
+
+function showTip(evt, html) {
+  tip.innerHTML = html;
+  tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = evt.clientX + 12, y = evt.clientY - r.height - 8;
+  if (x + r.width > innerWidth - 8) x = evt.clientX - r.width - 12;
+  if (y < 8) y = evt.clientY + 16;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => tip.style.opacity = 0;
+
+// Column chart, single series: 4px rounded data-end, square at the baseline, <= 24px thick.
+function columns(container, rows, label, tipText) {
+  container.innerHTML = "";
+  if (!rows.length) { container.innerHTML = '<div class="empty">No data yet</div>'; return; }
+  const W = Math.max(container.clientWidth, 260), H = 180, padL = 28, padB = 22, padT = 16;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img",
+                          "aria-label": rows.map(r => `${label(r[0])}: ${r[1]}`).join(", ") }, container);
+  const max = niceMax(Math.max(...rows.map(r => r[1])));
+  const plotW = W - padL, plotH = H - padB - padT;
+  const ticks = max <= 4 ? Array.from({ length: max + 1 }, (_, i) => i) : [0, max / 2, max];
+  for (const t of ticks) {
+    const y = padT + plotH - (t / max) * plotH;
+    el("line", { x1: padL, x2: W, y1: y, y2: y, stroke: t ? "var(--grid)" : "var(--baseline)", "stroke-width": 1 }, svg);
+    el("text", { x: padL - 6, y: y + 4, "text-anchor": "end" }, svg).textContent = fmtNum(t);
+  }
+  const band = plotW / rows.length, barW = Math.min(24, band * 0.6);
+  const labelEvery = Math.ceil(rows.length / Math.max(1, Math.floor(plotW / 56)));
+  rows.forEach(([key, n], i) => {
+    const cx = padL + band * i + band / 2, h = (n / max) * plotH, x = cx - barW / 2, y = padT + plotH - h;
+    const hit = el("rect", { class: "hit", x: padL + band * i, y: padT, width: band, height: plotH, rx: 4, tabindex: 0 }, svg);
+    const r = Math.min(4, h, barW / 2);
+    el("path", { class: "bar", d: h <= 0 ? "" :
+      `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + barW - r} Q${x + barW},${y} ${x + barW},${y + r} V${y + h} Z` }, svg);
+    if (rows.length <= 12)
+      el("text", { class: "value-label", x: cx, y: y - 5, "text-anchor": "middle" }, svg).textContent = fmtNum(n);
+    if (i % labelEvery === 0)
+      el("text", { x: cx, y: H - 6, "text-anchor": "middle" }, svg).textContent = label(key);
+    const html = tipText(key, n);
+    hit.addEventListener("mousemove", e => showTip(e, html));
+    hit.addEventListener("mouseleave", hideTip);
+    hit.addEventListener("focus", () => { const b = hit.getBoundingClientRect(); showTip({ clientX: b.left + b.width / 2, clientY: b.top + 20 }, html); });
+    hit.addEventListener("blur", hideTip);
+  });
+}
+
+let last = null;
+function render(d) {
+  last = d;
+  document.getElementById("t-total").textContent = fmtNum(d.total);
+  document.getElementById("t-day").textContent = fmtNum(d.active.day);
+  document.getElementById("t-week").textContent = fmtNum(d.active.week);
+  document.getElementById("t-month").textContent = fmtNum(d.active.month);
+  const plural = n => n === 1 ? "device" : "devices";
+  columns(document.getElementById("versions"), d.versions, v => "v" + v,
+          (v, n) => `<b>v${v}</b><br>${fmtNum(n)} ${plural(n)}`);
+  columns(document.getElementById("weeks"), d.weeks, fmtWeek,
+          (w, n) => `<b>Week of ${fmtWeek(w)}</b><br>${fmtNum(n)} new ${plural(n)}`);
+  const body = document.getElementById("devices");
+  body.innerHTML = d.devices.length ? "" : '<tr><td colspan="6" class="muted">No devices yet</td></tr>';
+  for (const dev of d.devices) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="id"></td><td class="num">v${dev.version}</td><td>${fmtDate(dev.installed)}</td>` +
+      `<td>${fmtDate(dev.first_seen)}</td><td>${fmtDateTime(dev.last_seen)} <span class="muted">· ${ago(dev.last_seen, d.now)}</span></td>` +
+      `<td class="num">${fmtNum(dev.launches)}</td>`;
+    tr.firstChild.textContent = dev.id;
+    body.appendChild(tr);
+  }
+  document.getElementById("updated").textContent = "Updated " + new Date().toLocaleTimeString() + " · refreshes every minute";
+}
+
+async function load() {
+  const err = document.getElementById("error");
+  try {
+    const res = await fetch("data.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    render(await res.json());
+    err.hidden = true;
+  } catch (e) {
+    err.hidden = false;
+    err.textContent = "Couldn't load usage data (" + e.message + "). Showing the last loaded figures.";
+  }
+}
+load();
+setInterval(load, 60000);
+let resizeTimer;
+addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => last && render(last), 150); });
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 """TBAS Sync usage tracker (stdlib only).
 
     python3 usage_server.py serve   # HTTP API on 127.0.0.1:5083 (exposed via Tailscale Funnel at /tbassync)
+                                    # + dashboard on 127.0.0.1:5084 (tailnet only, via `tailscale serve --https=8445`)
     python3 usage_server.py stats   # print a usage report
 
 Clients POST /tbassync/ping with JSON {"id": <32 hex>, "version": <int>, "event": "launch"|"heartbeat",
@@ -11,12 +12,14 @@ import os
 import re
 import sqlite3
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DB_PATH = os.environ.get("TBASSYNC_USAGE_DB", "/var/lib/tbassync-usage/usage.db")
 HOST, PORT = "127.0.0.1", int(os.environ.get("TBASSYNC_USAGE_PORT", "5083"))
+DASHBOARD_PORT = int(os.environ.get("TBASSYNC_DASHBOARD_PORT", "5084"))
 EVENTS = {"launch", "heartbeat"}
 ID_RE = re.compile(r"^[0-9a-f]{32}$")
 MAX_DEVICES = 50_000
@@ -115,6 +118,53 @@ def stats(con):
         print(f"{d[:8]:10} {v:>4} {day(inst):10} {day(first):10} {last_s:16} {launches:>8}")
 
 
+def dashboard_data(con):
+    now = int(time.time())
+    one = lambda sql, *a: con.execute(sql, a).fetchone()[0]
+    active = lambda secs: one("SELECT COUNT(*) FROM devices WHERE last_seen >= ?", now - secs)
+    return {
+        "now": now,
+        "total": one("SELECT COUNT(*) FROM devices"),
+        "active": {"day": active(86_400), "week": active(7 * 86_400), "month": active(30 * 86_400)},
+        "versions": con.execute("SELECT version, COUNT(*) FROM devices WHERE last_seen >= ? GROUP BY version "
+                                "ORDER BY version", (now - 30 * 86_400,)).fetchall(),
+        "weeks": con.execute("SELECT date(first_seen, 'unixepoch', 'weekday 1', '-7 days'), COUNT(*) FROM devices "
+                             "GROUP BY 1 ORDER BY 1").fetchall(),
+        "devices": [dict(zip(("id", "version", "installed", "first_seen", "last_seen", "launches"), row))
+                    for row in con.execute("SELECT substr(id, 1, 8), version, installed, first_seen, last_seen, "
+                                           "launches FROM devices ORDER BY last_seen DESC LIMIT 500")],
+    }
+
+
+class DashboardHandler(BaseHTTPRequestHandler):
+    """Private dashboard: bound to a separate port that only `tailscale serve` (tailnet) exposes,
+    so the public Funnel route (/tbassync -> PORT) can never reach it."""
+    timeout = 10
+
+    def do_GET(self):
+        if self.path == "/":
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html"), "rb") as f:
+                return self._send(f.read(), "text/html; charset=utf-8")
+        if self.path == "/data.json":
+            con = db()
+            try:
+                return self._send(json.dumps(dashboard_data(con)).encode(), "application/json")
+            finally:
+                con.close()
+        self._send(b"", "text/plain", 404)
+
+    def _send(self, body, content_type, code=200):
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
 def self_test():
     con = sqlite3.connect(":memory:")
     con.execute("""CREATE TABLE devices (id TEXT PRIMARY KEY, version INTEGER, installed INTEGER,
@@ -136,6 +186,8 @@ def self_test():
     assert accepts(con, "a" * 32) and not accepts(con, "c" * 32)
     MAX_DEVICES = 2
     assert accepts(con, "c" * 32)
+    data = dashboard_data(con)
+    assert data["total"] == 1 and data["devices"][0]["id"] == "a" * 8 and data["versions"] == []   # last_seen is 1970
     print("self-test OK")
 
 
@@ -143,6 +195,8 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else "serve"
     if command == "serve":
         db().close()
+        dashboard = ThreadingHTTPServer((HOST, DASHBOARD_PORT), DashboardHandler)
+        threading.Thread(target=dashboard.serve_forever, daemon=True).start()
         ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
     elif command == "stats":
         stats(db())
