@@ -6,8 +6,10 @@ integer version numbers that match `Services/versionManager.py`.
 
 ## [Unreleased]
 
+## [16] - 2026-10-31
+
 ### Added
-- Anonymous usage statistics: on launch and once a day, the app sends a random device ID, its version and its first-run date to the TBAS VPS (`server/usage_server.py`). No IP addresses are stored. Opt out with `"usageTracking": false` in `%APPDATA%\TBASSync\TBASSync-device.json`.
+- Anonymous usage statistics: on launch and once a day, the app sends a random device ID, its version and its install date to the TBAS VPS (`server/usage_server.py`). No IP addresses are stored. Opt out with `"usageTracking": false` in `%APPDATA%\TBASSync\TBASSync-device.json`.
 
 ## [15] - 2026-10-30
 
