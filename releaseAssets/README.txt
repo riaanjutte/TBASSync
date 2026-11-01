@@ -31,6 +31,12 @@ without asking, and shows a Windows notification when it's done.
 It starts automatically when you sign in to Windows. To turn that off, open
 Task Manager > Startup apps, select TBAS Sync and click Disable.
 
+Advanced: prefer a normal window? Quit TBAS Sync, set "trayMode" to false in
+TBASSync-config.json (see CONFIGURATION OPTIONS), and start it again. It then
+opens as a regular window, has no tray icon, quits when you close it, and no
+longer starts with Windows. It still checks for and installs new skins while
+the window is open.
+
 - Click the tray icon (or right-click > "Open TBAS Sync") to open the window.
 - Closing the window only hides it; TBAS Sync keeps running in the tray.
 - Right-click > "Check for skin updates now" to check immediately.
@@ -73,8 +79,8 @@ UNINSTALLING
 
 CONFIGURATION OPTIONS
 ---------------------
-These live in TBASSync-config.json. You can edit them through the app's
-parameters panel, or directly in the JSON file.
+These live in TBASSync-config.json. You can edit most of them through the
+app's parameters panel, or directly in the JSON file.
 
   IL2GBGameDirectory
       Path to your IL-2 install folder (the one that contains bin\game\).
@@ -94,6 +100,13 @@ parameters panel, or directly in the JSON file.
       swastikas) are replaced with neutral markings. Required in some
       countries. Controlled in the app by the "Restricted symbols" setting
       (Hide / Show originals).
+
+  trayMode
+      true/false (default true). When true, TBAS Sync runs in the system
+      tray and starts with Windows. When false, it is a normal window that
+      quits when closed, and it no longer starts with Windows. Config file
+      only: there is no setting for it in the app. Quit TBAS Sync before
+      editing, then start it again.
 
 
 USAGE STATISTICS
@@ -132,10 +145,12 @@ TROUBLESHOOTING
 
 - "I want to start over"
     Quit the app from the tray icon, delete %APPDATA%\TBASSync\, and relaunch.
+    If you turned tray mode off, close its window instead of using the tray.
 
 - "It says TBAS Sync is already running"
     It is in the system tray. Click its tray icon to open the window. If the
-    icon is hidden, click the ^ arrow next to the clock.
+    icon is hidden, click the ^ arrow next to the clock. If you turned tray
+    mode off, look for its window on the taskbar instead.
 
 
 CREDITS

@@ -6,6 +6,9 @@ integer version numbers that match `Services/versionManager.py`.
 
 ## [Unreleased]
 
+### Added
+- Advanced option to turn off tray mode: set `"trayMode": false` in `TBASSync-config.json` (no setting in the app; tray mode stays the default). TBAS Sync then opens as a normal window, has no tray icon, quits when closed, and removes its Windows startup entry. Setting it back to `true` restores tray mode and autostart on the next launch.
+
 ## [16] - 2026-10-31
 
 ### Added

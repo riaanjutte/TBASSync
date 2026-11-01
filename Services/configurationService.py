@@ -26,7 +26,8 @@ default_config = {
     "autoRemoveUnregisteredSkins": False,
     "cockpitNotesMode": "noSync",
     "applyCensorship": False,
-    "syncFriendsOfTBAS": False
+    "syncFriendsOfTBAS": False,
+    "trayMode": True
 }
 
 cockpitNotesModes = {

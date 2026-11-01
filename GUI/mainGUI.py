@@ -10,13 +10,14 @@ from PIL import Image, ImageTk
 import Services.loggingService as loggingService
 import Services.synchronizerService as SynchronizerService
 import Services.scannerService as ScannerService
-from Services import updateService, usageService
+from Services import autostartService, updateService, usageService
 from Services.messageBrocker import MessageBrocker
 from Services.loggingService import getLogFilePath
 from Services.configurationService import (
     configurationFileExists,
     generateConfFile,
     checkIL2InstallPath,
+    getConf,
 )
 from Services.filesService import getRessourcePath, getIconPath, cleanTemporaryFolder
 
@@ -109,20 +110,28 @@ class MainGUI:
         self.currentScanResult: SynchronizerService.ScanResult = None
         self.pendingProcessing = False
 
-        # ── TRAY: the app lives in the system tray; closing the window only hides
-        # it. The window starts hidden unless the user has to act on something.
+        # ── TRAY: in tray mode (the default) the app lives in the system tray; closing the
+        # window only hides it. The window starts hidden unless the user has to act on something.
+        # Advanced users can set "trayMode": false in the config file (no UI for it) to get a
+        # plain window app instead: no tray icon, closing it quits, no autostart.
         self._quit_after_sync = False
         self._last_failure = None   # last failure notified, so a skin failing every check isn't re-notified
-        self.tray = TrayIcon(self.ui, on_open=self.show_window, on_check=self.check_now, on_quit=self.quit_app)
-        # After a startup error the app does nothing in the tray, so closing the window quits it.
-        self.root.protocol("WM_DELETE_WINDOW", self.quit_app if startup_exception is not None else self.root.withdraw)
-        if not (first_launch or startup_exception is not None or not checkIL2InstallPath()):
-            self.root.withdraw()
+        self.tray = None
 
         if self._startup_exception is not None:
+            # After a startup error the app does nothing in the tray, so closing the window quits it.
+            self.root.protocol("WM_DELETE_WINDOW", self.quit_app)
             self.root.after(0, lambda: self._show_startup_exception(self._startup_exception))
             return
-        elif self._check_for_update:
+        tray_mode = getConf("trayMode")
+        if tray_mode:
+            self.tray = TrayIcon(self.ui, on_open=self.show_window, on_check=self.check_now, on_quit=self.quit_app)
+        self.root.protocol("WM_DELETE_WINDOW", self.root.withdraw if tray_mode else self.quit_app)
+        autostartService.setAutostart(tray_mode)
+        if tray_mode and not (first_launch or not checkIL2InstallPath()):
+            self.root.withdraw()
+
+        if self._check_for_update:
             self.root.after(0, self.start_update_check_async)
         else:
             self.root.after(0, self.load_collections_async)
@@ -137,6 +146,11 @@ class MainGUI:
 
     # ── TRAY ─────────────────────────────────────────────────────────────────
 
+    def _notify(self, message):
+        # without the tray icon the window is the only UI, and its status panel already says this
+        if self.tray is not None:
+            self.tray.notify("TBAS Sync", message)
+
     def show_window(self):
         self.root.deiconify()
         self.root.lift()
@@ -147,9 +161,11 @@ class MainGUI:
         # icon until then (the sync-finished handlers quit), or the app runs with no icon.
         if self.actionPanel._state == ActionPanel.STATE_SYNCING:
             self._quit_after_sync = True
-            self.root.withdraw()
+            # with no tray icon, keep a taskbar entry so the app doesn't look gone while it finishes
+            self.root.withdraw() if self.tray is not None else self.root.iconify()
             return
-        self.tray.stop()
+        if self.tray is not None:
+            self.tray.stop()
         self.root.destroy()
 
     def _periodic_check(self):
@@ -534,7 +550,7 @@ class MainGUI:
             "See the log file for details.",
         )
         if self._last_failure != "crash":
-            self.tray.notify("TBAS Sync", "Skin update failed. See the log file for details.")
+            self._notify("Skin update failed. See the log file for details.")
         self._last_failure = "crash"
         if self._quit_after_sync:
             self.quit_app()
@@ -556,13 +572,13 @@ class MainGUI:
             )
         if skin_failed:
             if self._last_failure != skin_failed:
-                self.tray.notify("TBAS Sync", f"{skin_failed} of {skin_total} skins failed to update. "
-                                              "See the log file for details.")
+                self._notify(f"{skin_failed} of {skin_total} skins failed to update. "
+                             "See the log file for details.")
             self._last_failure = skin_failed
         else:
             self._last_failure = None
             if skin_success:
-                self.tray.notify("TBAS Sync", f"{StatusPanel._format_counts(skin_success, 0)} updated.")
+                self._notify(f"{StatusPanel._format_counts(skin_success, 0)} updated.")
         if self._quit_after_sync:
             self.quit_app()
 
