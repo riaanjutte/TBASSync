@@ -31,13 +31,15 @@ without asking, and shows a Windows notification when it's done.
 It starts automatically when you sign in to Windows. To turn that off, open
 Task Manager > Startup apps, select TBAS Sync and click Disable.
 
-Advanced: prefer a normal window? Quit TBAS Sync, set "trayMode" to false in
-TBASSync-config.json (see CONFIGURATION OPTIONS), and start it again. It then
-opens as a regular window, has no tray icon, quits when you close it, and no
-longer starts with Windows. It still checks for and installs new skins while
-the window is open.
+Prefer a normal window? Untick "Keep running in the background and start
+with Windows" in the app. TBAS Sync then has no tray icon, quits when you
+close the window, and no longer starts with Windows. It still checks for and
+installs new skins while the window is open.
 
-- Click the tray icon (or right-click > "Open TBAS Sync") to open the window.
+- When Windows starts it, it stays in the tray. When you start it yourself,
+  its window opens.
+- Click the tray icon (or right-click > "Open TBAS Sync"), or start TBAS
+  Sync again, to open the window.
 - Closing the window only hides it; TBAS Sync keeps running in the tray.
 - Right-click > "Check for skin updates now" to check immediately.
 - Right-click > "Quit" to stop it completely.
@@ -104,9 +106,9 @@ app's parameters panel, or directly in the JSON file.
   trayMode
       true/false (default true). When true, TBAS Sync runs in the system
       tray and starts with Windows. When false, it is a normal window that
-      quits when closed, and it no longer starts with Windows. Config file
-      only: there is no setting for it in the app. Quit TBAS Sync before
-      editing, then start it again.
+      quits when closed, and it no longer starts with Windows. Controlled in
+      the app by the "Keep running in the background and start with Windows"
+      checkbox.
 
 
 USAGE STATISTICS

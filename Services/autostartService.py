@@ -32,7 +32,8 @@ def _register(exe_path):
         if exe.startswith(os.path.normcase(os.path.abspath(scratch)) + os.sep):
             return  # throwaway copy (run from inside a zip, or the updater's temp exe)
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_KEY, 0, winreg.KEY_SET_VALUE) as key:
-        winreg.SetValueEx(key, AUTOSTART_VALUE, 0, winreg.REG_SZ, f'"{os.path.abspath(exe_path)}"')
+        # -autostart: started at sign-in, so the window starts hidden in the tray
+        winreg.SetValueEx(key, AUTOSTART_VALUE, 0, winreg.REG_SZ, f'"{os.path.abspath(exe_path)}" -autostart')
 
 
 def _unregister():

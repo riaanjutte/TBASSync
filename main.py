@@ -6,6 +6,7 @@ migrateLegacyStateFiles()
 
 import Services.loggingService as loggingService
 import Services.updateService as updateService
+import Services.instanceService as instanceService
 
 from GUI.mainGUI import runMainGUI, runMainGUIException
 
@@ -30,6 +31,7 @@ if __name__ == "__main__":
     no_update = False
     update_withPrerelease = False
     debug_mode = False
+    started_at_login = False
 
     args = sys.argv[1:]
     i = 0
@@ -45,6 +47,9 @@ if __name__ == "__main__":
             update_withPrerelease = True
         elif arg == '-debug':
             debug_mode = True
+        elif arg == '-autostart':
+            # Launched by Windows at sign-in (the Run entry), not by the user.
+            started_at_login = True
         elif arg == '-target' and i + 1 < len(args):
             # Path of the exe on disk that should be overwritten by the updater.
             updateService.setTargetExePath(args[i + 1])
@@ -62,14 +67,16 @@ if __name__ == "__main__":
     else:
         instance_mutex = acquireSingleInstance()
         if instance_mutex is None:
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(None, "TBAS Sync is already running.", "TBAS Sync", 0x40)
+            if not instanceService.requestShow():
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(None, "TBAS Sync is already running.", "TBAS Sync", 0x40)
             sys.exit(0)
         try:
             runMainGUI(
                 check_for_update=(not no_update),
                 force_update=force_update,
                 prerelease=update_withPrerelease,
+                started_at_login=started_at_login,
             )
         except Exception as e:
             loggingService.error(e)

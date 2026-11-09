@@ -10,7 +10,7 @@ from PIL import Image, ImageTk
 import Services.loggingService as loggingService
 import Services.synchronizerService as SynchronizerService
 import Services.scannerService as ScannerService
-from Services import autostartService, updateService, usageService
+from Services import autostartService, instanceService, updateService, usageService
 from Services.messageBrocker import MessageBrocker
 from Services.loggingService import getLogFilePath
 from Services.configurationService import (
@@ -40,7 +40,8 @@ USAGE_HEARTBEAT_MS = 24 * 60 * 60 * 1000
 class MainGUI:
 
     def __init__(self, root, first_launch=False, startup_exception: Exception = None,
-                 check_for_update=False, force_update=False, update_prerelease=False):
+                 check_for_update=False, force_update=False, update_prerelease=False,
+                 started_at_login=False):
         self.root = root
         self._first_launch = first_launch
         self._startup_exception = startup_exception
@@ -57,7 +58,7 @@ class MainGUI:
 
         self.root.title("TBAS Sync v1.6")
         self.root.geometry("900x560")
-        self.root.minsize(750, 480)
+        self.root.minsize(750, 520)
 
         # ── HEADER ──────────────────────────────────────────────────────────
         self._build_header()
@@ -71,6 +72,7 @@ class MainGUI:
             on_parameters_change=self.on_parameters_change,
             ask_broad_search=self._ask_broad_search_via_status,
             ui=self.ui,
+            on_background_change=self.set_tray_mode,
         )
 
         # ── PROGRESS BAR ─────────────────────────────────────────────────────
@@ -111,9 +113,10 @@ class MainGUI:
         self.pendingProcessing = False
 
         # ── TRAY: in tray mode (the default) the app lives in the system tray; closing the
-        # window only hides it. The window starts hidden unless the user has to act on something.
-        # Advanced users can set "trayMode": false in the config file (no UI for it) to get a
-        # plain window app instead: no tray icon, closing it quits, no autostart.
+        # window only hides it. When Windows starts it at sign-in the window starts hidden,
+        # unless the user has to act on something; a launch by the user always shows it.
+        # Unticking "Keep running in the background" (config "trayMode") makes it a plain window
+        # app instead: no tray icon, closing it quits, no autostart.
         self._quit_after_sync = False
         self._last_failure = None   # last failure notified, so a skin failing every check isn't re-notified
         self.tray = None
@@ -124,12 +127,10 @@ class MainGUI:
             self.root.after(0, lambda: self._show_startup_exception(self._startup_exception))
             return
         tray_mode = getConf("trayMode")
-        if tray_mode:
-            self.tray = TrayIcon(self.ui, on_open=self.show_window, on_check=self.check_now, on_quit=self.quit_app)
-        self.root.protocol("WM_DELETE_WINDOW", self.root.withdraw if tray_mode else self.quit_app)
-        autostartService.setAutostart(tray_mode)
-        if tray_mode and not (first_launch or not checkIL2InstallPath()):
+        self.set_tray_mode(tray_mode)
+        if tray_mode and started_at_login and not (first_launch or not checkIL2InstallPath()):
             self.root.withdraw()
+        instanceService.listenForShowRequests(lambda: self.ui.call(self.show_window))
 
         if self._check_for_update:
             self.root.after(0, self.start_update_check_async)
@@ -145,6 +146,15 @@ class MainGUI:
         usageService.ping("heartbeat")
 
     # ── TRAY ─────────────────────────────────────────────────────────────────
+
+    def set_tray_mode(self, enabled):
+        if enabled and self.tray is None:
+            self.tray = TrayIcon(self.ui, on_open=self.show_window, on_check=self.check_now, on_quit=self.quit_app)
+        elif not enabled and self.tray is not None:
+            self.tray.stop()
+            self.tray = None
+        self.root.protocol("WM_DELETE_WINDOW", self.root.withdraw if enabled else self.quit_app)
+        autostartService.setAutostart(enabled)
 
     def _notify(self, message):
         # without the tray icon the window is the only UI, and its status panel already says this
@@ -597,7 +607,7 @@ def open_link_TBASDiscord():
 
 # ── ENTRY POINT ──────────────────────────────────────────────────────────────
 
-def runMainGUI(check_for_update=False, force_update=False, prerelease=False):
+def runMainGUI(check_for_update=False, force_update=False, prerelease=False, started_at_login=False):
     cleanTemporaryFolder()
     first_launch = not configurationFileExists()
     if first_launch:
@@ -609,6 +619,7 @@ def runMainGUI(check_for_update=False, force_update=False, prerelease=False):
         check_for_update=check_for_update,
         force_update=force_update,
         update_prerelease=prerelease,
+        started_at_login=started_at_login,
     )
     root.mainloop()
 

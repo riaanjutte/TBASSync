@@ -12,9 +12,11 @@ from Services.messageBrocker import MessageBrocker
 from Services.subscriptionsService import invalidateSubscriptionsCache
 
 class ParametersPanel:
-    def __init__(self, root: tk, on_parameters_change=None, ask_broad_search=None, ui: UiDispatcher = None):
+    def __init__(self, root: tk, on_parameters_change=None, ask_broad_search=None, ui: UiDispatcher = None,
+                 on_background_change=None):
         self.root = root
         self.on_parameters_change = on_parameters_change
+        self.on_background_change = on_background_change
         self._external_ask_broad_search = ask_broad_search
         self._ui = ui if ui is not None else UiDispatcher(root)
 
@@ -110,6 +112,21 @@ class ParametersPanel:
         )
         self.sync_friends_check.pack(side=tk.LEFT, padx=5)
         Tooltip(self.sync_friends_check, text="Optional: also download skins from the Friends of TBAS collection")
+
+        background_frame = tk.Frame(params_label_frame)
+        background_frame.pack(fill="x", pady=2)
+
+        self.background_var = tk.BooleanVar(value=getConf("trayMode"))
+        self.background_check = ttk.Checkbutton(
+            background_frame,
+            text="Keep running in the background and start with Windows",
+            variable=self.background_var,
+            command=self.modify_background,
+        )
+        self.background_check.pack(side=tk.LEFT, padx=5)
+        Tooltip(self.background_check, text="On: closing the window keeps TBAS Sync running in the system tray, installing new skins\n"
+                                            "as they appear, and it starts when you sign in to Windows.\n"
+                                            "Off: closing the window quits TBAS Sync.")
 
     def emit_collections_change(self):
         #external emit
@@ -254,7 +271,12 @@ class ParametersPanel:
         update_config_param("syncFriendsOfTBAS", self.sync_friends_var.get())
         invalidateSubscriptionsCache()
         self.emit_collections_change()
-    
+
+    def modify_background(self):
+        update_config_param("trayMode", self.background_var.get())
+        if self.on_background_change:
+            self.on_background_change(self.background_var.get())
+
     def on_cokpitNote_dropdown_change(self, event):
         #find the cokpit not mode associated to the text
         selected_mode = next(mode for mode in cockpitNotesModes.keys()
