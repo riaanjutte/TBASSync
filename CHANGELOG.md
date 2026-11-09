@@ -4,25 +4,21 @@ All notable changes to TBASSync are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely and uses
 integer version numbers that match `Services/versionManager.py`.
 
-## [Unreleased]
+## [17] - 2026-11-09
 
 ### Added
-- "Keep running in the background and start with Windows" checkbox (ticked by default; `trayMode` in `TBASSync-config.json`). Unticked, TBAS Sync has no tray icon, quits when its window is closed, and removes its Windows startup entry. Ticking it again restores the tray icon and autostart immediately.
-- After an update, TBAS Sync shows what changed since the version you had, once. A fresh install doesn't.
-- Skins aren't installed automatically while IL-2 is running; they wait until the game closes (checked every minute). "Update Now" still installs them right away.
-- Closing the window in tray mode shows a notification that TBAS Sync is still running in the background, with how to open or quit it.
-- The tray icon tooltip shows the current status and when it changed, e.g. "Everything is up to date (10:42)".
-- Free disk space is checked before a sync. If the IL-2 drive is too full, TBAS Sync says how much is needed instead of failing part-way (one notification, not one every 10 minutes).
-- "Remove old TBAS skins" button: offers to delete skins that TBAS Sync installed and that their collection no longer has, after listing them and asking. TBAS Sync now records the skins it installed (`TBASSync-installed.json`), so it never offers the user's own skins, and never when a collection failed to load or arrived incomplete (checked against its `skins_count`). Skins dropped before this version are not detected.
-- `tests/`: the GUI and service tests, run with `venv\Scripts\python.exe tests\run_all.py`.
+- A "Keep running in the background and start with Windows" setting, on by default. Turn it off and TBAS Sync works like a normal window: closing it quits the app, and it no longer starts with Windows.
+- New skins aren't installed while you're flying. If IL-2 is running, TBAS Sync waits until you quit the game. "Update Now" still installs them straight away.
+- A "Remove old TBAS skins" button appears when skins are taken out of the TBAS collection. It lists them and asks before deleting anything, and it never touches your own skins. Only skins removed from now on are found.
+- TBAS Sync checks there is enough free disk space before downloading, and tells you how much room it needs.
+- Hover over the tray icon to see what TBAS Sync is doing, for example "Everything is up to date (10:42)".
+- Closing the window shows a notification that TBAS Sync is still running in the background.
+- After an update, this list of what's new is shown once.
 
 ### Changed
-- Cockpit notes/photos work again, from HSD's cockpit notes packs. The IRRE server dropped its catalogs in October 2026 (every scan logged a 404 and installed nothing). The "Cockpit notes/photos" list now offers every pack online on HSD (reloaded with every 10-minute check), so new packs such as "FTC Cockpit Notes" appear without an app update. `cockpitNotesMode` saves the pack id; the four names saved by older versions map to HSD packs 4, 2, 3 and 1, the same files Fizz moved there, so photos already installed aren't downloaded again.
-- A saved pack that isn't online, or a list that couldn't be loaded, shows the choice as "Unavailable: ...".
-- The log file stops at 1 MB and keeps one previous file (`TBASSync.log.1`). A missing cockpit catalog is logged as one line instead of a full error on every scan; before, a tray copy wrote about 2,000 log lines a day.
-- The window title is built from `currentVersion`, so a release only bumps `Services/versionManager.py`.
-- Starting TBAS Sync yourself now always opens its window. Only the launch at Windows sign-in stays hidden in the tray (the startup entry now passes `-autostart`).
-- Starting TBAS Sync while it already runs opens the running copy's window, instead of showing an "already running" message.
+- Cockpit notes and photos work again. They now come from the cockpit notes packs on HSD, and the list shows every pack there, including new ones such as "FTC Cockpit Notes". Your choice is kept, and photos you already have aren't downloaded again. A pack that's offline shows as "Unavailable".
+- Starting TBAS Sync yourself now always opens its window, even when it's already running in the tray. It only stays hidden in the tray when Windows starts it at sign-in.
+- The log file no longer grows without limit.
 
 ## [16] - 2026-10-31
 
