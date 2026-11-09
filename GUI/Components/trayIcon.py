@@ -22,6 +22,10 @@ class TrayIcon:
         self._icon = pystray.Icon("TBASSync", Image.open(getRessourcePath("TBAS.png")), "TBAS Sync", menu)
         threading.Thread(target=self._icon.run, daemon=True).start()
 
+    def set_status(self, text):
+        # the Windows tooltip holds at most 127 characters
+        self._icon.title = text[:127]
+
     def notify(self, title, message):
         self._icon.notify(message, title)
 

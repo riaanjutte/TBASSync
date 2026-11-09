@@ -5,8 +5,9 @@ from GUI.customTheme import TBASDarkTheme
 
 
 class StatusPanel:
-    def __init__(self, root):
+    def __init__(self, root, on_status=None):
         self.root = root
+        self._on_status = on_status   # gets every status title, e.g. to mirror it in the tray tooltip
 
         self.frame = tk.Frame(root, bg=TBASDarkTheme.BG_DARKER)
         self.frame.pack(expand=True, fill="both")
@@ -60,6 +61,8 @@ class StatusPanel:
         self.icon_label.configure(text=icon, fg=icon_color)
         self.title_label.configure(text=title, fg=title_color)
         self.detail_label.configure(text=detail)
+        if self._on_status:
+            self._on_status(title)
 
     def showLoading(self):
         self._show("\u22ef", TBASDarkTheme.FG_SECONDARY,
@@ -82,6 +85,11 @@ class StatusPanel:
         self._show("\u2193", TBASDarkTheme.ACCENT_PRIMARY,
                    title, TBASDarkTheme.ACCENT_PRIMARY,
                    "Press \"Update Now\" to start.")
+
+    def showWaitingForGame(self, skins: int = 0):
+        self._show("\u22ef", TBASDarkTheme.ACCENT_PRIMARY,
+                   f"{self._format_counts(skins, 0)} waiting for IL-2 to close", TBASDarkTheme.ACCENT_PRIMARY,
+                   "They install when you quit the game, or press \"Update Now\" to install them now.")
 
     def showSyncing(self, skins: int = 0, cockpit: int = 0):
         title = f"Updating {self._format_counts(skins, cockpit)}\u2026" if (skins or cockpit) else "Updating\u2026"

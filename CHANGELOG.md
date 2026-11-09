@@ -8,8 +8,19 @@ integer version numbers that match `Services/versionManager.py`.
 
 ### Added
 - "Keep running in the background and start with Windows" checkbox (ticked by default; `trayMode` in `TBASSync-config.json`). Unticked, TBAS Sync has no tray icon, quits when its window is closed, and removes its Windows startup entry. Ticking it again restores the tray icon and autostart immediately.
+- After an update, TBAS Sync shows what changed since the version you had, once. A fresh install doesn't.
+- Skins aren't installed automatically while IL-2 is running; they wait until the game closes (checked every minute). "Update Now" still installs them right away.
+- Closing the window in tray mode shows a notification that TBAS Sync is still running in the background, with how to open or quit it.
+- The tray icon tooltip shows the current status and when it changed, e.g. "Everything is up to date (10:42)".
+- Free disk space is checked before a sync. If the IL-2 drive is too full, TBAS Sync says how much is needed instead of failing part-way (one notification, not one every 10 minutes).
+- "Remove old TBAS skins" button: offers to delete skins that TBAS Sync installed and that their collection no longer has, after listing them and asking. TBAS Sync now records the skins it installed (`TBASSync-installed.json`), so it never offers the user's own skins, and never when a collection failed to load or arrived incomplete (checked against its `skins_count`). Skins dropped before this version are not detected.
+- `tests/`: the GUI and service tests, run with `venv\Scripts\python.exe tests\run_all.py`.
 
 ### Changed
+- Cockpit notes/photos work again, from HSD's cockpit notes packs. The IRRE server dropped its catalogs in October 2026 (every scan logged a 404 and installed nothing). The "Cockpit notes/photos" list now offers every pack online on HSD (reloaded with every 10-minute check), so new packs such as "FTC Cockpit Notes" appear without an app update. `cockpitNotesMode` saves the pack id; the four names saved by older versions map to HSD packs 4, 2, 3 and 1, the same files Fizz moved there, so photos already installed aren't downloaded again.
+- A saved pack that isn't online, or a list that couldn't be loaded, shows the choice as "Unavailable: ...".
+- The log file stops at 1 MB and keeps one previous file (`TBASSync.log.1`). A missing cockpit catalog is logged as one line instead of a full error on every scan; before, a tray copy wrote about 2,000 log lines a day.
+- The window title is built from `currentVersion`, so a release only bumps `Services/versionManager.py`.
 - Starting TBAS Sync yourself now always opens its window. Only the launch at Windows sign-in stays hidden in the tray (the startup entry now passes `-autostart`).
 - Starting TBAS Sync while it already runs opens the running copy's window, instead of showing an "already running" message.
 

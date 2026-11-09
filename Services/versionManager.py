@@ -15,6 +15,10 @@ HTTP_TIMEOUT = (10, 60)
 def getCurrentVersion():
     return currentVersion
 
+def getVersionLabel(version=currentVersion):
+    """The version as users see it: 16 -> "v1.6"."""
+    return f"v{version // 10}.{version % 10}"
+
 def getReleases():
     response = requests.get(f"{GITHUB_REPO_URL}/releases", timeout=HTTP_TIMEOUT)
     if response.status_code == 200:

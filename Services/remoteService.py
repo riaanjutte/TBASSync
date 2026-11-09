@@ -1,7 +1,7 @@
 import requests
 import json
 
-from Services.configurationService import getConf, cockpitNotesModes
+from Services.configurationService import getConf
 from Services.filesService import downloadFile, HTTP_TIMEOUT
 from Services.messageBrocker import MessageBrocker
 
@@ -119,58 +119,61 @@ def getRemoteCollectionsCatalog() -> list[RemoteCollection]:
         raise e
 
 
-customPhotosCatalogURL = "https://www.lesirreductibles.com/irreskins/IRRE/CustomPhotos/[mode]CustomPhotosManifest.json"
-customPhotosFilesURL = "https://www.lesirreductibles.com/irreskins/IRRE/CustomPhotos/[mode]/[aircraft]/Textures/custom_photo.dds"
+# Cockpit notes come from HSD's cockpit notes packs. The setting "cockpitNotesMode" holds the id of
+# the chosen pack, or "noSync".
+cockpit_notes_packs_URL = f"{main_api_URL}/cockpitNotesPacks"
+cockpit_notes_download_URL = f"{main_api_URL}/cockpitNotesPacks/notes/[path]"
+# Choices saved before the app listed HSD's packs each named an IRRE catalog. Fizz moved those to
+# these HSD packs in Oct 2026, when the IRRE server dropped them.
+legacyCockpitNotesPackIds = {
+    "originalPhotos": 4,      # "IL2 original game photos"
+    "officialNumbers": 2,     # "Lefuneste IL2 specifications"
+    "technochatNumbers": 3,   # "Lefuneste technochat measurements"
+    "MetalheadNumbers": 1,    # "Metalhead measurements"
+}
+COCKPIT_NOTE_FILE_NAME = "custom_photo.dds"   # the file the game reads in planes/<aircraft>/Textures/
 
 
-def getCockpitNotesModeInfo(mode):
-    if mode not in cockpitNotesModes.keys():
-        raise Exception(f"Unexpected cockpitNotesModes {mode}")
-    
+def selectedCockpitNotesPackId():
+    """The HSD pack id of the saved choice; None when cockpit photos are off."""
+    mode = getConf("cockpitNotesMode")
     if mode == "noSync":
-        return {
-            "catalogURL": None,
-            "filesURL": None
-        }
-    else:
-        return {
-            "catalogURL": customPhotosCatalogURL.replace("[mode]", mode),
-            "filesURL": customPhotosFilesURL.replace("[mode]", mode),
-        }
-            
+        return None
+    return legacyCockpitNotesPackIds.get(mode, mode)
+
+
+def getCockpitNotesPacks():
+    """The cockpit notes packs online on HSD for IL-2 Great Battles: [{"id", "title", ...}]."""
+    # short timeout: the window waits for this list to fill the dropdown
+    response = requests.get(cockpit_notes_packs_URL, timeout=10)
+    response.raise_for_status()
+    return [pack for pack in response.json()["packs"] if pack.get("state") == "Approved" and pack.get("game") == "IL2GB"]
+
 
 def getCustomPhotosList():
-    #hard coded remote address for the cockpitNotesCatalog
-    catalogURL = getCockpitNotesModeInfo(getConf("cockpitNotesMode"))["catalogURL"]
-    if catalogURL is None:
+    """The notes of the selected pack, as [{"aircraft", "md5", "size", "path"}]; [] when cockpit photos are off."""
+    pack_id = selectedCockpitNotesPackId()
+    if pack_id is None:
         return []
 
     try:
-        response = requests.get(catalogURL, timeout=HTTP_TIMEOUT)
-
-         # Check if the request was successful (status code 200)
-        if response.status_code == 200:
-            file_content = response.json()
-            return file_content
-        else:
-            raise Exception(f"Cannot retrieve cockpit notes catalog due to server response :{response.status_code}")
+        response = requests.get(f"{cockpit_notes_packs_URL}/{pack_id}", timeout=HTTP_TIMEOUT)
     except requests.ConnectionError as e:
         MessageBrocker.emitConsoleMessage("Cannot join server to retrieve cockpit notes. Consider deactivating its synchronization.")
         raise e
-    except Exception as e:
-        raise e
-
-def getSpaceUsageOfCustomPhotoCatalog(customPhotosList):
-    totalDiskSpace = 0
-    for skin in customPhotosList:
-        #This is soooo bad. custom photos are about 1 400 000 bites
-        #TODO : addd the file size in the manifests
-        totalDiskSpace += 1400000
-    
-    return totalDiskSpace
+    if response.status_code != 200:
+        raise Exception(f"Cannot retrieve cockpit notes pack {pack_id} due to server response :{response.status_code}")
+    pack = response.json()
+    if pack.get("state") != "Approved":
+        raise Exception(f"Cockpit notes pack {pack_id} is not online ({pack.get('state')})")
+    return [{
+        "aircraft": note["game_asset"]["code_name"],
+        "md5": note["MD5"].lower(),
+        "size": note["size_in_b"],
+        "path": note["path"],
+    } for note in pack.get("notes", [])]
 
 def downloadCustomPhoto(cockpitNotesMode, cockpitNote):
-    filesURL = getCockpitNotesModeInfo(cockpitNotesMode)["filesURL"]
-
-    targetURL = filesURL.replace("[aircraft]", cockpitNote["aircraft"])
-    return downloadFile(targetURL, cockpitNote["md5"])
+    # HSD serves the file under another name; the game only reads custom_photo.dds
+    return downloadFile(cockpit_notes_download_URL.replace("[path]", cockpitNote["path"]), cockpitNote["md5"],
+                        destination_file_name=COCKPIT_NOTE_FILE_NAME)

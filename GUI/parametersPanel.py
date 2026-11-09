@@ -9,6 +9,7 @@ from GUI.Components.uiDispatcher import UiDispatcher
 from Services.configurationService import getConf, update_config_param, cockpitNotesModes, checkIL2InstallPath, tryToFindIL2PathViaSteam, tryToFindIL2PathBroadSearch
 from Services.filesService import getIconPath
 from Services.messageBrocker import MessageBrocker
+from Services.remoteService import selectedCockpitNotesPackId
 from Services.subscriptionsService import invalidateSubscriptionsCache
 
 class ParametersPanel:
@@ -61,7 +62,6 @@ class ParametersPanel:
 
         self.cokpitNote_dropdown = ttk.Combobox(
             cokpit_note_frame,
-            values=[cockpitNotesModes[mode] for mode in cockpitNotesModes.keys()],
             state="readonly",
             width=60,
             font=("Bahnschrift Light Condensed", 14),
@@ -69,7 +69,7 @@ class ParametersPanel:
         Tooltip(self.cokpitNote_dropdown, text="Select the cockpit photos collection - some include notes on the plane's operational limits.\n"
                                                     "In-game, set Plane Settings > Photo to 'Photo'. The preview there always shows the\n"
                                                     "default photo; the synced one only appears in the cockpit during flight.")
-        self.cokpitNote_dropdown.set(cockpitNotesModes[getConf("cockpitNotesMode")])
+        self.set_cockpit_packs(None)   # HSD's packs are filled in once they have loaded
         self.cokpitNote_dropdown.pack(side=tk.LEFT, padx=5)
         self.cokpitNote_dropdown.bind("<<ComboboxSelected>>", self.on_cokpitNote_dropdown_change)
 
@@ -277,10 +277,25 @@ class ParametersPanel:
         if self.on_background_change:
             self.on_background_change(self.background_var.get())
 
+    def set_cockpit_packs(self, packs):
+        """Offer every cockpit notes pack online on HSD (packs; None while they load).
+        A saved pack that isn't online stays listed as "Unavailable: ...", so nobody wonders why nothing arrives."""
+        saved = getConf("cockpitNotesMode")
+        current = selectedCockpitNotesPackId()
+        choices = {cockpitNotesModes["noSync"]: "noSync"}
+        for pack in sorted(packs or [], key=lambda p: p["title"].lower()):
+            label = pack["title"] if pack["title"] not in choices else f"{pack['title']} (#{pack['id']})"
+            choices[label] = pack["id"]
+        if current is not None and current not in choices.values():
+            name = cockpitNotesModes.get(saved, f"Cockpit notes pack #{current}")
+            choices[name if packs is None else f"Unavailable: {name}"] = saved
+        self._cockpit_label_to_mode = choices
+        self.cokpitNote_dropdown.configure(values=list(choices))
+        self.cokpitNote_dropdown.set(next(label for label, value in choices.items() if value in (saved, current)))
+
     def on_cokpitNote_dropdown_change(self, event):
         #find the cokpit not mode associated to the text
-        selected_mode = next(mode for mode in cockpitNotesModes.keys()
-                           if cockpitNotesModes[mode] == self.cokpitNote_dropdown.get())
+        selected_mode = self._cockpit_label_to_mode[self.cokpitNote_dropdown.get()]
         update_config_param("cockpitNotesMode", selected_mode)
         self.cokpitNote_dropdown.selection_clear()
         self.emit_collections_change()

@@ -1,7 +1,9 @@
 import os
+import shutil
 import sys
 import threading
-from tkinter import ttk
+import time
+from tkinter import ttk, messagebox
 import tkinter as tk
 import webbrowser
 import requests
@@ -10,9 +12,10 @@ from PIL import Image, ImageTk
 import Services.loggingService as loggingService
 import Services.synchronizerService as SynchronizerService
 import Services.scannerService as ScannerService
-from Services import autostartService, instanceService, updateService, usageService
+from Services import autostartService, changelogService, instanceService, localService, remoteService, updateService, usageService
 from Services.messageBrocker import MessageBrocker
 from Services.loggingService import getLogFilePath
+from Services.versionManager import getVersionLabel
 from Services.configurationService import (
     configurationFileExists,
     generateConfFile,
@@ -32,8 +35,11 @@ from GUI.Components.clickableIcon import CliquableIcon
 from GUI.Components.uiDispatcher import UiDispatcher
 from GUI.Components.trayIcon import TrayIcon
 from GUI.customTheme import apply_theme, TBASDarkTheme
+from GUI.changelogDialog import showChangelog
 
 CHECK_INTERVAL_MS = 10 * 60 * 1000
+GAME_POLL_SECONDS = 60
+DISK_SPACE_MARGIN = 100 * 1024 * 1024   # leave Windows and the game some room
 USAGE_HEARTBEAT_MS = 24 * 60 * 60 * 1000
 
 
@@ -52,11 +58,16 @@ class MainGUI:
         # Worker threads hand UI work to the Tk thread through this; they must
         # never touch widgets (or call root.after) directly.
         self.ui = UiDispatcher(self.root)
+        self.tray = None
+        self._tray_status = "TBAS Sync"
+        self._waiting_for_game = False
+        self._retired_skins = []   # kept apart from currentScanResult, which a finished sync clears
+        self._changelog = []   # what changed since the version last shown, until it is shown
         self.root.iconbitmap(getRessourcePath("TBAS.ico"))
 
         apply_theme(self.root)
 
-        self.root.title("TBAS Sync v1.6")
+        self.root.title(f"TBAS Sync {getVersionLabel()}")
         self.root.geometry("900x560")
         self.root.minsize(750, 520)
 
@@ -91,14 +102,15 @@ class MainGUI:
         self.actionPanel = ActionPanel(
             footer_frame,
             scanCommand=self.start_scan_async,
-            syncCommand=self.start_synchronization_async
+            syncCommand=self.start_synchronization_async,
+            cleanupCommand=self.remove_retired_skins,
         )
 
         # ── BOTTOM: Status panel (fills remaining space above the footer) ──
         bottom_main_frame = tk.Frame(self.root)
         bottom_main_frame.pack(side="bottom", fill="both", expand=True)
 
-        self.statusPanel = StatusPanel(bottom_main_frame)
+        self.statusPanel = StatusPanel(bottom_main_frame, on_status=self._set_tray_status)
 
         # ── PREVIEW STRIP: between status and footer, only packed while at
         # least one skin is to be downloaded/updated ─────────────────────────
@@ -119,7 +131,6 @@ class MainGUI:
         # app instead: no tray icon, closing it quits, no autostart.
         self._quit_after_sync = False
         self._last_failure = None   # last failure notified, so a skin failing every check isn't re-notified
-        self.tray = None
 
         if self._startup_exception is not None:
             # After a startup error the app does nothing in the tray, so closing the window quits it.
@@ -131,6 +142,11 @@ class MainGUI:
         if tray_mode and started_at_login and not (first_launch or not checkIL2InstallPath()):
             self.root.withdraw()
         instanceService.listenForShowRequests(lambda: self.ui.call(self.show_window))
+        # after an update, show what changed once; a window starting hidden shows it when first opened
+        self._changelog = changelogService.pendingChangelog(first_launch)
+        if self.root.state() != "withdrawn":
+            self.root.after(500, self._show_changelog)
+        threading.Thread(target=self._load_cockpit_packs, daemon=True).start()
 
         if self._check_for_update:
             self.root.after(0, self.start_update_check_async)
@@ -150,11 +166,33 @@ class MainGUI:
     def set_tray_mode(self, enabled):
         if enabled and self.tray is None:
             self.tray = TrayIcon(self.ui, on_open=self.show_window, on_check=self.check_now, on_quit=self.quit_app)
+            self.tray.set_status(self._tray_status)
         elif not enabled and self.tray is not None:
             self.tray.stop()
             self.tray = None
-        self.root.protocol("WM_DELETE_WINDOW", self.root.withdraw if enabled else self.quit_app)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray if enabled else self.quit_app)
         autostartService.setAutostart(enabled)
+
+    def hide_to_tray(self):
+        """The window's X in tray mode: hide the window, and say the app keeps running."""
+        self.root.withdraw()
+        self._notify("TBAS Sync is still running in the background and keeps your skins up to date. "
+                     "Click its tray icon to open it, or right-click the icon and choose Quit to close it.")
+
+    def _load_cockpit_packs(self):
+        # worker thread: list HSD's cockpit notes packs for the dropdown
+        try:
+            packs = remoteService.getCockpitNotesPacks()
+        except Exception as e:
+            loggingService.warning(f"Cannot list the cockpit notes packs: {e}")
+            packs = []
+        self.ui.call(self.parametersPanel.set_cockpit_packs, packs)
+
+    def _set_tray_status(self, title):
+        # hovering the tray icon shows the latest status and when it changed
+        self._tray_status = f"TBAS Sync: {title} ({time.strftime('%H:%M')})"
+        if self.tray is not None:
+            self.tray.set_status(self._tray_status)
 
     def _notify(self, message):
         # without the tray icon the window is the only UI, and its status panel already says this
@@ -165,6 +203,14 @@ class MainGUI:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
+        self._show_changelog()
+
+    def _show_changelog(self):
+        if not self._changelog:
+            return
+        showChangelog(self.root, self._changelog)
+        self._changelog = []
+        changelogService.markChangelogSeen()
 
     def quit_app(self):
         # A sync in progress keeps the process alive until its files are moved: keep the tray
@@ -180,6 +226,8 @@ class MainGUI:
 
     def _periodic_check(self):
         self.root.after(CHECK_INTERVAL_MS, self._periodic_check)
+        # the tray app runs for weeks: pick up new packs, and recover from a slow HSD at start
+        threading.Thread(target=self._load_cockpit_packs, daemon=True).start()
         self.check_now()
 
     def check_now(self):
@@ -491,6 +539,7 @@ class MainGUI:
 
     def start_scan_async(self):
         self.currentScanResult = None
+        self.actionPanel.set_cleanup_count(0)
         self._hide_preview_strip()
         self.lock_components_actions()
         self.actionPanel.set_state(ActionPanel.STATE_SCANNING)
@@ -498,16 +547,18 @@ class MainGUI:
         threading.Thread(target=self._scan_worker).start()
 
     def _scan_worker(self):
-        scan_result, scan_crashed = None, False
+        scan_result, scan_crashed, game_running = None, False, False
         try:
             scan_result = ScannerService.scanAll()
+            # only asked when there is something to install (tasklist takes a moment)
+            game_running = scan_result is not None and not scan_result.IsSyncUpToDate() and localService.isGameRunning()
         except Exception as e:
             loggingService.error(e)
             MessageBrocker.emitProgress(0)
             scan_crashed = True
-        self.ui.call(self._on_scan_finished, scan_result, scan_crashed)
+        self.ui.call(self._on_scan_finished, scan_result, scan_crashed, game_running)
 
-    def _on_scan_finished(self, scan_result, scan_crashed):
+    def _on_scan_finished(self, scan_result, scan_crashed, game_running=False):
         self.currentScanResult = scan_result
         self.unlock_components_actions()
         self._refresh_action_state()
@@ -521,9 +572,52 @@ class MainGUI:
         else:
             self._refresh_status_from_scan()
         self._show_scan_previews()
-        # New or updated skins are synced silently, without waiting for "Update Now".
+        self._retired_skins = scan_result.retiredSkins if scan_result is not None else []
+        self.actionPanel.set_cleanup_count(len(self._retired_skins))
+        # New or updated skins are synced silently, without waiting for "Update Now",
+        # but not mid-flight: they wait until IL-2 closes ("Update Now" still works).
         if not scan_crashed and self._pendingSkinCount() > 0:
-            self.start_synchronization_async()
+            if game_running:
+                self.statusPanel.showWaitingForGame(skins=self._pendingSkinCount())
+                self._wait_for_game_to_close()
+            else:
+                self.start_synchronization_async()
+
+    def _wait_for_game_to_close(self):
+        if self._waiting_for_game:
+            return
+        self._waiting_for_game = True
+
+        def poll():
+            while localService.isGameRunning():
+                time.sleep(GAME_POLL_SECONDS)
+            self.ui.call(self._on_game_closed)
+        threading.Thread(target=poll, daemon=True).start()
+
+    def _on_game_closed(self):
+        self._waiting_for_game = False
+        self.check_now()
+
+    def remove_retired_skins(self):
+        retired = self._retired_skins
+        if not retired:
+            return
+        names = [f"{skin.name}  ({skin.game_asset_code})" for skin in retired]
+        shown = "\n".join(names[:15]) + (f"\n\u2026and {len(names) - 15} more" if len(names) > 15 else "")
+        if not messagebox.askyesno(
+                "Remove old TBAS skins",
+                f"These skins were installed by TBAS Sync but are no longer in their TBAS collection:\n\n{shown}\n\n"
+                "Delete them from your IL-2 skins folder? This can't be undone.",
+                icon="warning", default="no", parent=self.root):
+            return
+        if self.actionPanel._state not in (ActionPanel.STATE_UP_TO_DATE, ActionPanel.STATE_UPDATES):
+            return
+        for skin in retired:
+            try:
+                SynchronizerService.deleteSkinFromLocal(skin)
+            except Exception as e:
+                loggingService.error(e)
+        self.start_scan_async()
 
     def start_synchronization_async(self):
         scan_result = self.currentScanResult
@@ -532,6 +626,21 @@ class MainGUI:
             return
         skins_to_update = self._pendingSkinCount()
         cockpit_to_update = self._pendingCockpitCount()
+        il2_folder = getConf("IL2GBGameDirectory")
+        needed = (sum(skin.size_in_b() for skin in scan_result.missingSkins + scan_result.toBeUpdatedSkins)
+                  + sum(note["size"] for note in scan_result.toBeUpdatedCockpitNotes))
+        free = shutil.disk_usage(il2_folder).free
+        if free < needed + DISK_SPACE_MARGIN:
+            drive = os.path.splitdrive(il2_folder)[0] or il2_folder
+            self.statusPanel.showError(
+                "Not enough disk space",
+                f"Needs {ScannerService.bytesToString(needed)}, but {drive} has only "
+                f"{ScannerService.bytesToString(free)} free. Free up space, then press \"Update Now\".",
+            )
+            if self._last_failure != "disk":
+                self._notify(f"Not enough disk space to update {StatusPanel._format_counts(skins_to_update, cockpit_to_update)}.")
+            self._last_failure = "disk"
+            return
         self.lock_components_actions()
         self.actionPanel.set_state(ActionPanel.STATE_SYNCING)
         self.statusPanel.showSyncing(skins=skins_to_update, cockpit=cockpit_to_update)

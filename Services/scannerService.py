@@ -1,5 +1,5 @@
 import Services.loggingService as loggingService
-from Services.configurationService import getConf, customPhotoSyncIsActive, checkIL2InstallPath, cockpitNotesModes
+from Services.configurationService import customPhotoSyncIsActive, checkIL2InstallPath
 import Services.localService as localService
 import Services.remoteService as remoteService
 from Services.subscriptionsService import getAllSubcriptions
@@ -13,87 +13,8 @@ class ScanResult:
         self.toBeRemovedSkins= list[localService.LocalSkin]()
         self.previouslyInstalledSkins = list[localService.LocalSkin]()
         self.toBeUpdatedCockpitNotes = list()
+        self.retiredSkins = list[localService.LocalSkin]()   # installed by TBAS Sync, since dropped from their collection
         
-    def getDiskUsageStats(self):
-        return {
-            "subscribedSkinsSpace":sum([skin.size_in_b() for skin in self.subscribedSkins]),
-            "missingSkinsSpace": sum([skin.size_in_b() for skin in self.missingSkins]),
-            "toBeUpdatedSkinsSpace": sum([skin.size_in_b() for skin in self.toBeUpdatedSkins]),
-            "toBeRemovedSkinsSpace": localService.getSpaceUsageOfLocalSkinCatalog(self.toBeRemovedSkins),
-            "previouslyInstalledSkinsSpace": localService.getSpaceUsageOfLocalSkinCatalog(self.previouslyInstalledSkins),
-            "toBeUpdatedCustomPhotos": remoteService.getSpaceUsageOfCustomPhotoCatalog(self.toBeUpdatedCockpitNotes)
-        }
-    
-    def toString(self):
-        returnString = ""
-
-        diskSpaceStats = self.getDiskUsageStats()
-
-
-        if customPhotoSyncIsActive():
-            returnString += f"\n************ Cockpit notes ************\n"
-            returnString += f"Selected images : {cockpitNotesModes[getConf('cockpitNotesMode')]}\n\n"
-            if len(self.toBeUpdatedCockpitNotes) == 0:
-                returnString += "<bold>All custom photos are up to date</bold>\n"
-            else:
-                returnString += f"<bold>{len(self.toBeUpdatedCockpitNotes)} custom photos are to be updated ({bytesToString(diskSpaceStats['toBeUpdatedCustomPhotos'])})</bold>\n"
-
-        afterUpdateDiskSpace = diskSpaceStats["subscribedSkinsSpace"]
-
-        returnString += f"\n********** Unregistered skins ********** ({bytesToString(diskSpaceStats['toBeRemovedSkinsSpace'])})"
-
-        returnString += "\n"
-
-        for skin in self.toBeRemovedSkins:
-            returnString += f"<chocolate>{skin.name}</chocolate>\n"
-        if len(self.toBeRemovedSkins) == 0:
-            returnString +="- None -\n"
-
-        returnString += "\n*********** Disk space analysis ***********\n\n"
-
-        beforeUpdateDiskSpace = diskSpaceStats["previouslyInstalledSkinsSpace"]
-
-        toBeDownloaded = diskSpaceStats["toBeUpdatedSkinsSpace"] + diskSpaceStats["missingSkinsSpace"] + diskSpaceStats["toBeUpdatedCustomPhotos"]
-
-        #if unregistered skins are not deleted, count them it the final space
-        unregistered_remove_message = "will be removed"
-        if not getConf("autoRemoveUnregisteredSkins"):
-            unregistered_remove_message = "won't be removed"
-            afterUpdateDiskSpace += diskSpaceStats["toBeRemovedSkinsSpace"]
-
-        spaceDelta = afterUpdateDiskSpace - beforeUpdateDiskSpace
-
-
-        if self.IsSyncUpToDate():
-            returnString += f"Disk space used by your skins : {bytesToString(beforeUpdateDiskSpace)}\n"
-            returnString += f"Disk space used by your unregistered skins : {bytesToString(diskSpaceStats['toBeRemovedSkinsSpace'])}"
-        else:
-            returnString += f"Disk space used by your skins (before update) : {bytesToString(beforeUpdateDiskSpace)}\n"
-            returnString += f"Disk space used by your unregistered skins ({unregistered_remove_message}): {bytesToString(diskSpaceStats['toBeRemovedSkinsSpace'])}\n"
-            returnString += f"Disk space used by your skins (after update) : {bytesToString(afterUpdateDiskSpace)} ({bytesToString(spaceDelta, forceSign=True)})"
-
-        returnString += f"\n\nMissing skins ({bytesToString(diskSpaceStats['missingSkinsSpace'])}) :\n"
-        for skin in self.missingSkins:
-            returnString += f"<blue>{skin.name()}</blue>\n"
-        if len(self.missingSkins) == 0:
-            returnString +="- None -\n"
-
-        returnString += f"\nTo be updated skins ({bytesToString(diskSpaceStats['toBeUpdatedSkinsSpace'])}) :\n"
-        for skin in self.toBeUpdatedSkins:
-            returnString += f"<blue>{skin.name()}</blue>\n"
-        if len(self.toBeUpdatedSkins) == 0:
-            returnString +="- None -\n"
-        
-        
-        returnString += "\n\n<bold>*************** Scan result ***************</bold>\n\n"
-        if self.IsSyncUpToDate():
-            returnString += "<green><bold>Skins are up to date.</bold></green>\n"
-        else:
-            returnString += "<red><bold>Synchronisation required!</bold></red>\n"
-            returnString += f"<bold>To be downloaded : {bytesToString(toBeDownloaded)}</bold>\n"
-
-        return returnString 
-    
     def IsSyncUpToDate(self):
         if len(self.missingSkins) != 0:
             return False
@@ -213,8 +134,37 @@ def scanSkins():
         if foundRemoteSkin is None:
             scanResult.toBeRemovedSkins.append(localSkin)
 
+    try:
+        installed = localService.loadInstalledSkins()
+        scanResult.retiredSkins = findRetiredSkins(installed, scanResult.previouslyInstalledSkins, subscribedCollectionList)
+        localService.saveInstalledSkins(installed)
+    except Exception as e:  # the cleanup offer must never block the skin sync
+        loggingService.warning(f"Cannot check for old TBAS skins: {e}")
+
     loggingService.info("END SCAN")
     return scanResult
+
+
+def skinKey(game_asset_code, name):
+    return f"{game_asset_code}/{name}"
+
+
+def findRetiredSkins(installed: dict, localSkins, collections) -> list:
+    """Skins TBAS Sync installed that their collection no longer offers, and that are still on disk.
+    Updates `installed` (collection id -> skin keys) with that collection's skins on disk now.
+    Only collections that loaded completely count: after a failed or cut-off download every missing
+    skin would look retired."""
+    local = {skinKey(skin.game_asset_code, skin.name): skin for skin in localSkins}
+    loaded = {str(c.id): {skinKey(s.game_asset_code(), s.name()) for s in c.skins}
+              for c in collections if c.active and c.id is not None and c.skins and len(c.skins) == c.skins_count}
+    still_offered = set().union(*loaded.values())
+    retired = {}
+    for collection_id, offered in loaded.items():
+        recorded = set(installed.get(collection_id, [])) & local.keys()   # forget skins gone from disk
+        for key in recorded - still_offered:
+            retired[key] = local[key]
+        installed[collection_id] = sorted(recorded | (offered & local.keys()))
+    return list(retired.values())
 
 
 def scanCustomPhotos():
@@ -257,7 +207,8 @@ def scanAll():
         try:
             scanResult.toBeUpdatedCockpitNotes = scanCustomPhotos()
         except Exception as e:
-            loggingService.error(e)
+            # one line, not a traceback: this repeats on every scan while the catalog is down
+            loggingService.warning(f"Cockpit notes catalog unavailable, skipping cockpit photos: {e}")
             MessageBrocker.emitConsoleMessage("Cockpit notes catalog unavailable, skipping cockpit photos.")
     MessageBrocker.emitProgress(0)
     MessageBrocker.emitConsoleMessage("SCAN FINISHED")

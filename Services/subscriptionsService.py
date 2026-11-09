@@ -22,6 +22,7 @@ class SubscribedCollection:
         self.description = None
         self.creator_name = None
         self.skins: list[RemoteSkin] = []
+        self.skins_count = None   # what the server says the collection holds
         self.size_in_b_unrestricted = 0
         self.size_in_b_restricted_only = 0
 
@@ -44,6 +45,7 @@ class SubscribedCollection:
             self.creator_name = raw_json_data["creator_name"]
             self.size_in_b_unrestricted = raw_json_data["size_in_b_unrestricted"]
             self.size_in_b_restricted_only = raw_json_data["size_in_b_restricted_only"]
+            self.skins_count = raw_json_data.get("skins_count")
             self.browser_URL = browser_collection_URL.replace("[collection_id]", str(self.id))
 
             for skin_json in raw_json_data.get("skins", []):

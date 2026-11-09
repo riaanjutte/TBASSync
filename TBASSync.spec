@@ -5,7 +5,7 @@ a = Analysis(
     ['.\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('CHANGELOG.md', 'Resources')],   # shown once after an update
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

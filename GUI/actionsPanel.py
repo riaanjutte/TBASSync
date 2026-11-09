@@ -10,7 +10,7 @@ class ActionPanel:
     STATE_SYNCING            = "syncing"
     STATE_SOFTWARE_UPDATING  = "software_updating"
 
-    def __init__(self, root: tk, scanCommand, syncCommand):
+    def __init__(self, root: tk, scanCommand, syncCommand, cleanupCommand):
         self.root = root
         self._scanCommand = scanCommand
         self._syncCommand = syncCommand
@@ -28,6 +28,9 @@ class ActionPanel:
         )
         self.recheckButton.grid(row=0, column=0, sticky="w")
 
+        # Only shown while TBAS Sync finds skins it installed that are gone from their collection.
+        self.cleanupButton = ttk.Button(frame, command=cleanupCommand)
+
         self.primaryButton = ttk.Button(
             frame,
             text="Loading\u2026",
@@ -44,8 +47,17 @@ class ActionPanel:
         if self._state == self.STATE_UPDATES:
             self._syncCommand()
 
+    def set_cleanup_count(self, count):
+        if count:
+            self.cleanupButton.configure(text=f"Remove {count} old TBAS {'skin' if count == 1 else 'skins'}")
+            self.cleanupButton.grid(row=0, column=1, padx=10)
+        else:
+            self.cleanupButton.grid_remove()
+
     def set_state(self, state, summary: str = None):
         self._state = state
+        idle = state in (self.STATE_UP_TO_DATE, self.STATE_UPDATES)
+        self.cleanupButton.configure(state="normal" if idle else "disabled")
 
         if state == self.STATE_LOADING:
             self.primaryButton.configure(text="Loading\u2026", state="disabled", style="")

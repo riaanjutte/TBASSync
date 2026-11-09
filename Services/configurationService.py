@@ -5,6 +5,7 @@ import winreg
 from pathlib import Path
 
 from Services.paths import getUserDataFilePath
+from Services.versionManager import currentVersion
 
 # File name of the configuration file (on disk it lives in the user data dir)
 config_file_name = 'TBASSync-config.json'
@@ -27,7 +28,10 @@ default_config = {
     "cockpitNotesMode": "noSync",
     "applyCensorship": False,
     "syncFriendsOfTBAS": False,
-    "trayMode": True
+    "trayMode": True,
+    # the version whose changes were last shown. Configs from before this setting are one version
+    # behind, so an update to this version shows its changes; a fresh install records the current one.
+    "lastSeenVersion": currentVersion - 1
 }
 
 cockpitNotesModes = {

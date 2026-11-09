@@ -20,7 +20,9 @@ Subscriptions/
 TBASSync-config.json
 TBASSync-subscriptions.json
 TBASSync-hashes.json
+TBASSync-installed.json
 TBASSync.log
+TBASSync.log.1
 
 # Editor / tooling
 .claude/

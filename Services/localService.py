@@ -1,6 +1,7 @@
 import os
 import hashlib
 import json
+import subprocess
 
 import Services.loggingService as loggingService
 from Services.configurationService import getConf
@@ -117,16 +118,6 @@ def removeSkin(localSkinInfo: LocalSkin):
         filePath = os.path.join(getSkinDirectory(), localSkinInfo.game_asset_code, file.fileName)
         deleteFile(filePath)
 
-def getSpaceUsageOfLocalSkinCatalog(skinList: list[LocalSkin]):
-    totalDiskSpace = 0
-    for skin in skinList:
-        for file in skin.dds_files:
-            totalDiskSpace += file.fileSize
-    
-    return totalDiskSpace
-
-
-
 def getCustomPhotosList():
     return getCustomPhotosListFromPath(getCustomPhotosDirectory())
 
@@ -239,3 +230,33 @@ def manage_file_md5(file_path, json_file=None):
         json.dump(manage_file_md5.json_data, f, indent=4)
     
     return full_md5
+
+
+def isGameRunning(image_name="Il-2.exe"):
+    """True while IL-2 runs. Only the image name is matched: tasklist's other text is localized."""
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/NH", "/FO", "CSV"],
+                             capture_output=True, text=True, timeout=15,
+                             creationflags=subprocess.CREATE_NO_WINDOW).stdout
+    except Exception as e:
+        loggingService.warning(f"Cannot check whether IL-2 is running: {e}")
+        return False
+    return f'"{image_name.lower()}"' in out.lower()
+
+
+# The skins TBAS Sync installed, per collection id: {"5": ["Fw190A3/TBAS Fw 190 A-3", ...]}.
+# Lets it offer to remove the ones a collection drops, without touching anyone's own skins.
+installed_skins_file_name = "TBASSync-installed.json"
+
+
+def loadInstalledSkins() -> dict:
+    try:
+        with open(getUserDataFilePath(installed_skins_file_name), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def saveInstalledSkins(installed: dict):
+    with open(getUserDataFilePath(installed_skins_file_name), "w", encoding="utf-8") as f:
+        json.dump(installed, f, indent=1, ensure_ascii=False)

@@ -28,6 +28,13 @@ TBAS Sync runs in the system tray (the icons next to the clock). It checks
 for new or updated skins when it starts and every 10 minutes, installs them
 without asking, and shows a Windows notification when it's done.
 
+While IL-2 is running it doesn't install anything, so nothing downloads in
+the middle of a flight. New skins wait until you quit the game. To install
+them anyway, open the window and press "Update Now".
+
+Hover over the tray icon to see what TBAS Sync is doing and when that last
+changed, for example "Everything is up to date (10:42)".
+
 It starts automatically when you sign in to Windows. To turn that off, open
 Task Manager > Startup apps, select TBAS Sync and click Disable.
 
@@ -40,9 +47,20 @@ installs new skins while the window is open.
   its window opens.
 - Click the tray icon (or right-click > "Open TBAS Sync"), or start TBAS
   Sync again, to open the window.
-- Closing the window only hides it; TBAS Sync keeps running in the tray.
+- Closing the window only hides it; TBAS Sync keeps running in the tray,
+  and a notification tells you so.
 - Right-click > "Check for skin updates now" to check immediately.
 - Right-click > "Quit" to stop it completely.
+- After TBAS Sync updates itself, it shows what changed, once.
+
+
+REMOVING OLD TBAS SKINS
+-----------------------
+When a skin is taken out of the TBAS collection, TBAS Sync shows a "Remove
+old TBAS skins" button. It lists the skins and asks before deleting them.
+It only ever offers skins that TBAS Sync installed itself: your own skins
+and other squads' skins are never touched. Skins that left the collection
+before you had this version of TBAS Sync are not detected.
 
 
 WHERE YOUR SETTINGS ARE STORED
@@ -56,6 +74,9 @@ you'll find:
 
     TBASSync-config.json   - your configuration
     TBASSync.log           - log file (attach this when reporting issues)
+    TBASSync.log.1         - the previous log file (each one stops at 1 MB)
+    TBASSync-installed.json - which skins TBAS Sync installed (used to
+                             offer removing old TBAS skins)
     TBASSync-hashes.json   - cached file checksums (safe to delete)
     TBASSync-device.json   - anonymous usage ID (see USAGE STATISTICS)
     temp\                  - scratch downloads (safe to delete when closed)
@@ -88,14 +109,18 @@ app's parameters panel, or directly in the JSON file.
       Path to your IL-2 install folder (the one that contains bin\game\).
 
   cockpitNotesMode
-      Controls the cockpit note / photo images:
-        "noSync"             keep whatever is currently installed
-        "originalPhotos"     restore the game's original photos
-        "officialNumbers"    cockpit notes from IL-2 specifications
+      Which cockpit notes / photos to install. The app's "Cockpit
+      notes/photos" list offers every cockpit notes pack on HSD; pick one
+      there. In the file it is "noSync" (keep whatever is installed) or the
+      number of the HSD pack. Names saved by older versions still work:
+        "originalPhotos"     HSD pack 4, the game's original photos
+        "officialNumbers"    HSD pack 2, notes from IL-2 specifications
                              (by C6_lefuneste)
-        "technochatNumbers"  cockpit notes from technochat measurements
+        "technochatNumbers"  HSD pack 3, notes from technochat measurements
                              (by C6_lefuneste)
-        "MetalheadNumbers"   cockpit notes from Metalhead measurements
+        "MetalheadNumbers"   HSD pack 1, notes from Metalhead measurements
+      If the chosen pack is offline, the app shows it as "Unavailable: ..."
+      and skips cockpit photos until it is back.
 
   applyCensorship
       true/false. When true, skins that contain restricted symbols (such as
@@ -144,6 +169,10 @@ TROUBLESHOOTING
     choose "Photo". The preview on that screen always shows the game's
     default photo — the synced one only appears in the cockpit once you're
     flying.
+
+- "Not enough disk space"
+    The skins to install need more room than is free on the drive that
+    holds IL-2. Free up some space, then press "Update Now".
 
 - "I want to start over"
     Quit the app from the tray icon, delete %APPDATA%\TBASSync\, and relaunch.

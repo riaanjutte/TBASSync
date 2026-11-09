@@ -1,8 +1,11 @@
 import logging
+from logging.handlers import RotatingFileHandler
 
 from Services.paths import getUserDataFilePath
 
 log_file_name = 'TBASSync.log'
+# The tray app runs for weeks: keep TBASSync.log plus one older TBASSync.log.1, 1 MB each.
+LOG_MAX_BYTES = 1_000_000
 
 
 def getLogFilePath():
@@ -17,7 +20,7 @@ def initialise_logger(debug_mode = False):
         logLevel = logging.DEBUG
 
     logging.basicConfig(
-        filename=getLogFilePath(),     # Le fichier de log où les messages seront enregistrés
+        handlers=[RotatingFileHandler(getLogFilePath(), maxBytes=LOG_MAX_BYTES, backupCount=1, encoding="utf-8")],
         level= logLevel,          # Le niveau de log (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         format='%(asctime)s - %(levelname)s - %(message)s',  # Format du message
         datefmt='%Y-%m-%d %H:%M:%S'    # Format de la date
