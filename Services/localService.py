@@ -13,6 +13,13 @@ from Services.paths import getUserDataFilePath
 def getSkinDirectory():
     return os.path.join(getConf("IL2GBGameDirectory"), "data\\graphics\\skins")
 
+def skinInstallTime(game_asset_code: str, dds_file_name: str):
+    """When that skin file was installed or last updated on this PC; None when it isn't there."""
+    try:
+        return os.path.getmtime(os.path.join(getSkinDirectory(), game_asset_code, dds_file_name))
+    except OSError:
+        return None
+
 def getCustomPhotosDirectory():
     return os.path.join(getConf("IL2GBGameDirectory"), "data\\graphics\\planes")
 

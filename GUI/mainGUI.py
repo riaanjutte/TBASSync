@@ -30,6 +30,7 @@ from GUI.statusPanel import StatusPanel
 from GUI.actionsPanel import ActionPanel
 
 from GUI.previewStrip import PreviewStrip, KIND_NEW, KIND_UPDATE
+from GUI.hangarPanel import HangarPanel
 from GUI.progressBar import ProgressBar
 from GUI.Components.clickableIcon import CliquableIcon
 from GUI.Components.uiDispatcher import UiDispatcher
@@ -68,8 +69,8 @@ class MainGUI:
         apply_theme(self.root)
 
         self.root.title(f"TBAS Sync {getVersionLabel()}")
-        self.root.geometry("900x560")
-        self.root.minsize(750, 520)
+        self.root.geometry("970x680")
+        self.root.minsize(750, 600)
 
         # ── HEADER ──────────────────────────────────────────────────────────
         self._build_header()
@@ -119,6 +120,14 @@ class MainGUI:
         self._preview_strip_visible = False
         self._sync_new_skin_ids = set()
         MessageBrocker.registerSkinSyncHook(self._on_skin_sync_event)
+
+        # ── HANGAR: the squadron's skins, under the status line once the collection is known
+        self.hangar = HangarPanel(self.root, self.ui)
+        self._hangar_visible = False
+        self._collection_skins = []
+        self._synced_skins = ([], [])   # (new, updated) skins of the running sync, named when it is done
+        # the window is back from the tray or the taskbar: fetch the previews skipped while it was hidden
+        self.root.bind("<Map>", lambda e: e.widget is self.root and self.hangar.load_previews(), add="+")
 
         # State
         self.currentScanResult: SynchronizerService.ScanResult = None
@@ -197,7 +206,7 @@ class MainGUI:
     def _notify(self, message):
         # without the tray icon the window is the only UI, and its status panel already says this
         if self.tray is not None:
-            self.tray.notify("TBAS Sync", message)
+            self.tray.notify("TBAS Sync", message[:255])   # Windows takes no more, and pystray raises on it
 
     def show_window(self):
         self.root.deiconify()
@@ -497,16 +506,51 @@ class MainGUI:
         if self._preview_strip_visible:
             return
         self._preview_strip_visible = True
-        self.previewStrip.pack(side="bottom", fill="x", before=self._status_container)
-        self.statusPanel.setCompact(True)
+        self._layout_status()
 
     def _hide_preview_strip(self):
         if not self._preview_strip_visible:
             return
         self._preview_strip_visible = False
-        self.previewStrip.pack_forget()
         self.previewStrip.clear()
-        self.statusPanel.setCompact(False)
+        self._layout_status()
+
+    def _layout_status(self):
+        """Stack the status, the preview strip and the hangar between the progress bar and the footer.
+        The packing order is who gets room first in a small window: with the hangar shown, the status
+        line, then the strip, and the hangar takes what is left."""
+        for widget in (self._status_container, self.previewStrip, self.hangar):
+            widget.pack_forget()
+        if self._hangar_visible:
+            self._status_container.pack(side="top", fill="x")
+            if self._preview_strip_visible:
+                self.previewStrip.pack(side="top", fill="x")
+            self.hangar.pack(side="top", fill="both", expand=True)
+        else:
+            if self._preview_strip_visible:
+                self.previewStrip.pack(side="bottom", fill="x")
+            self._status_container.pack(side="bottom", fill="both", expand=True)
+        self.statusPanel.setCompact(self._preview_strip_visible or self._hangar_visible, band=self._hangar_visible)
+
+    # ── HANGAR ───────────────────────────────────────────────────────────────
+
+    def _refresh_hangar(self, skins=None):
+        """Show the collection's skins under the status line (none: hide the hangar). skins=None keeps
+        the last list and only re-reads when each skin arrived, which is when its file was written."""
+        if skins is not None:
+            self._collection_skins = skins
+        skins = self._collection_skins
+        if skins:
+            installed_at = {}
+            for skin in skins:
+                files = skin.dds_files()
+                when = localService.skinInstallTime(skin.game_asset_code(), files[0].destination_name) if files else None
+                if when is not None:
+                    installed_at[skin.id()] = when
+            self.hangar.set_skins(skins, installed_at)
+        if bool(skins) != self._hangar_visible:
+            self._hangar_visible = bool(skins)
+            self._layout_status()
 
     @staticmethod
     def _preview_item(skin, kind):
@@ -572,6 +616,8 @@ class MainGUI:
         else:
             self._refresh_status_from_scan()
         self._show_scan_previews()
+        # a failed check keeps the hangar as it was; without an IL-2 folder there is nothing to show
+        self._refresh_hangar(None if scan_crashed else scan_result.subscribedSkins if scan_result is not None else [])
         self._retired_skins = scan_result.retiredSkins if scan_result is not None else []
         self.actionPanel.set_cleanup_count(len(self._retired_skins))
         # New or updated skins are synced silently, without waiting for "Update Now",
@@ -644,6 +690,7 @@ class MainGUI:
         self.lock_components_actions()
         self.actionPanel.set_state(ActionPanel.STATE_SYNCING)
         self.statusPanel.showSyncing(skins=skins_to_update, cockpit=cockpit_to_update)
+        self._synced_skins = (list(scan_result.missingSkins), list(scan_result.toBeUpdatedSkins))
         if skins_to_update > 0:
             self._sync_new_skin_ids = {skin.id() for skin in scan_result.missingSkins}
             # Queued before the worker starts, so it is applied before any skin event.
@@ -678,6 +725,7 @@ class MainGUI:
         self.currentScanResult = None
         self.unlock_components_actions()
         self._refresh_action_state()
+        self._refresh_hangar()
         skin_failed = skin_total - skin_success
         cockpit_failed = cockpit_total - cockpit_success
         if skin_failed == 0 and cockpit_failed == 0:
@@ -697,12 +745,26 @@ class MainGUI:
         else:
             self._last_failure = None
             if skin_success:
-                self._notify(f"{StatusPanel._format_counts(skin_success, 0)} updated.")
+                self._notify(arrivalMessage(*self._synced_skins))
         if self._quit_after_sync:
             self.quit_app()
 
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
+
+def arrivalMessage(new, updated):
+    """The notification after a sync, naming what arrived: "New skin: TBAS Bf110-E2 by MayheM-1."."""
+    def names(skins):
+        return ", ".join(skin.name() for skin in skins[:2]) + (f" and {len(skins) - 2} more" if len(skins) > 2 else "")
+
+    parts = []
+    if len(new) == 1:
+        parts.append(f"New skin: {new[0].name()}" + (f" by {new[0].creator()}." if new[0].creator() else "."))
+    elif new:
+        parts.append(f"{len(new)} new skins: {names(new)}.")
+    if updated:
+        parts.append(f"{StatusPanel._format_counts(len(updated), 0)} updated: {names(updated)}.")
+    return " ".join(parts)
 
 def open_link(link: str):
     webbrowser.open(link)

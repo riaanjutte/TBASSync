@@ -6,6 +6,8 @@ from PIL import Image, ImageTk
 
 from GUI.Components.tooltip import Tooltip
 from GUI.Components.uiDispatcher import UiDispatcher
+from GUI.cockpitPackDialog import packCredit, showCockpitPack
+from GUI.customTheme import TBASDarkTheme
 from Services.configurationService import getConf, update_config_param, cockpitNotesModes, checkIL2InstallPath, tryToFindIL2PathViaSteam, tryToFindIL2PathBroadSearch
 from Services.filesService import getIconPath
 from Services.messageBrocker import MessageBrocker
@@ -57,7 +59,7 @@ class ParametersPanel:
         cokpit_note_frame.pack(fill="x", pady=2)
 
         cokpitNote_label = tk.Label(cokpit_note_frame, text="Cockpit notes/photos", anchor="w", font=("Bahnschrift Light Condensed", 14))
-        cokpitNote_label.pack(side=tk.LEFT, padx=5)
+        cokpitNote_label.grid(row=0, column=0, padx=5)
 
         self.cokpitNote_dropdown = ttk.Combobox(
             cokpit_note_frame,
@@ -68,8 +70,18 @@ class ParametersPanel:
         Tooltip(self.cokpitNote_dropdown, text="Select the cockpit photos collection - some include notes on the plane's operational limits.\n"
                                                     "In-game, set Plane Settings > Photo to 'Photo'. The preview there always shows the\n"
                                                     "default photo; the synced one only appears in the cockpit during flight.")
+        self.cockpit_preview_btn = ttk.Button(cokpit_note_frame, text="Preview", padding=(12, 0), command=self.preview_cockpit_pack)
+        self.cockpit_preview_btn.grid(row=0, column=2, padx=5)
+        Tooltip(self.cockpit_preview_btn, text="See the selected pack's notes for each aircraft")
+        # one line, as wide as the dropdown: a second line would squeeze out the status when the preview strip shows
+        self._cockpit_info_font = tkFont.Font(family="Bahnschrift Light Condensed", size=12)
+        self.cockpit_pack_info = tk.Label(cokpit_note_frame, width=1, height=1, bd=0, pady=0, anchor="w",
+                                          fg=TBASDarkTheme.FG_SECONDARY, font=self._cockpit_info_font)
+        self.cockpit_pack_info.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
+        self.cockpit_pack_info.bind("<Configure>", self._refresh_cockpit_pack_info)
         self.set_cockpit_packs(None)   # HSD's packs are filled in once they have loaded
-        self.cokpitNote_dropdown.pack(side=tk.LEFT, padx=5)
+        self.cokpitNote_dropdown.grid(row=0, column=1, padx=5, sticky="ew")
+        cokpit_note_frame.columnconfigure(1, weight=1)   # a narrow window shrinks the dropdown, not the Preview button
         self.cokpitNote_dropdown.bind("<<ComboboxSelected>>", self.on_cokpitNote_dropdown_change)
 
         restricted_frame = tk.Frame(params_label_frame)
@@ -119,17 +131,18 @@ class ParametersPanel:
         if self.on_parameters_change:
             self.root.after(0, self.on_parameters_change)
     
-    def _fit_path_text(self, fullPath, available_px):
+    def _fit_path_text(self, fullPath, available_px, font=None):
+        font = font or self._path_font
         if available_px <= 0:
             return fullPath
-        if self._path_font.measure(fullPath) <= available_px:
+        if font.measure(fullPath) <= available_px:
             return fullPath
         ellipsis = "..."
-        ellipsis_px = self._path_font.measure(ellipsis)
+        ellipsis_px = font.measure(ellipsis)
         lo, hi = 0, len(fullPath)
         while lo < hi:
             mid = (lo + hi + 1) // 2
-            if self._path_font.measure(fullPath[:mid]) + ellipsis_px <= available_px:
+            if font.measure(fullPath[:mid]) + ellipsis_px <= available_px:
                 lo = mid
             else:
                 hi = mid - 1
@@ -271,14 +284,45 @@ class ParametersPanel:
             name = cockpitNotesModes.get(saved, f"Cockpit notes pack #{current}")
             choices[name if packs is None else f"Unavailable: {name}"] = saved
         self._cockpit_label_to_mode = choices
+        self._cockpit_packs = {pack["id"]: pack for pack in packs or []}
         self.cokpitNote_dropdown.configure(values=list(choices))
         self.cokpitNote_dropdown.set(next(label for label, value in choices.items() if value in (saved, current)))
+        self._refresh_cockpit_pack_info()
+
+    def _selected_cockpit_pack(self):
+        """The online HSD pack chosen in the dropdown; None for no sync, while loading and for an unavailable pack."""
+        return self._cockpit_packs.get(self._cockpit_label_to_mode.get(self.cokpitNote_dropdown.get()))
+
+    def _refresh_cockpit_pack_info(self, event=None):
+        """The muted line under the dropdown (description, author, aircraft count) and the Preview button."""
+        pack = self._selected_cockpit_pack()
+        text = ""
+        if pack:
+            credit = packCredit(pack)
+            description = " ".join((pack.get("description") or "").split())
+            room = self.cockpit_pack_info.winfo_width() - 4 - self._cockpit_info_font.measure(" — " + credit)
+            description = self._fit_path_text(description, room, self._cockpit_info_font) if room > 0 else ""
+            text = f"{description} — {credit}" if description else credit[0].upper() + credit[1:]
+        if self.cockpit_pack_info.cget("text") != text:
+            self.cockpit_pack_info.configure(text=text)
+        # no pack to describe: take no room, or the default "No synchronization" leaves a gap in the panel
+        if bool(pack) != bool(self.cockpit_pack_info.winfo_manager()):
+            self.cockpit_pack_info.grid() if pack else self.cockpit_pack_info.grid_remove()
+        state = "normal" if pack else "disabled"
+        if str(self.cockpit_preview_btn.cget("state")) != state:
+            self.cockpit_preview_btn.configure(state=state)
+
+    def preview_cockpit_pack(self):
+        pack = self._selected_cockpit_pack()
+        if pack:
+            showCockpitPack(self.root.winfo_toplevel(), pack, self._ui)
 
     def on_cokpitNote_dropdown_change(self, event):
         #find the cokpit not mode associated to the text
         selected_mode = self._cockpit_label_to_mode[self.cokpitNote_dropdown.get()]
         update_config_param("cockpitNotesMode", selected_mode)
         self.cokpitNote_dropdown.selection_clear()
+        self._refresh_cockpit_pack_info()
         self.emit_collections_change()
 
     def lock_actions(self):

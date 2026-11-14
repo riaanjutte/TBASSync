@@ -8,25 +8,42 @@ collections.
 
 INSTALLATION
 ------------
-1. Extract this zip to a folder of your choice (Desktop, Documents, a
+Recommended: the installer.
+
+1. Download TBASSync-Setup.exe from the Releases page:
+       https://github.com/riaanjutte/TBASSync/releases
+
+2. Run it. It installs TBAS Sync for your Windows account only (no admin
+   password needed) into %LOCALAPPDATA%\Programs\TBAS Sync and adds a Start
+   Menu shortcut. Tick "Create a desktop shortcut" if you want one too.
+
+   TBAS Sync isn't code-signed, so Windows may show a blue "Windows
+   protected your PC" box. Click "More info", then "Run anyway".
+
+3. Leave "Start TBAS Sync" ticked on the last page and click Finish.
+
+4. On first launch the app tries to auto-detect your IL-2 installation. If
+   it can't find it, you'll be asked to point it at the folder that contains
+   bin\game\Il-2.exe.
+
+Portable option: the zip (this file came in it).
+
+1. Extract the zip to a folder of your choice (Desktop, Documents, a
    dedicated "Tools" folder, wherever you like).
 
    IMPORTANT: do NOT run TBASSync.exe directly from inside the zip. Windows
    will extract it to a throwaway temporary folder, your settings will not
    persist, and the app may not behave correctly.
 
-2. Double-click TBASSync.exe.
-
-3. On first launch the app tries to auto-detect your IL-2 installation. If
-   it can't find it, you'll be asked to point it at the folder that contains
-   bin\game\Il-2.exe.
+2. Double-click TBASSync.exe. First launch works as in step 4 above.
 
 
 RUNNING IN THE SYSTEM TRAY
 --------------------------
 TBAS Sync runs in the system tray (the icons next to the clock). It checks
 for new or updated skins when it starts and every 10 minutes, installs them
-without asking, and shows a Windows notification when it's done.
+without asking, and shows a Windows notification that names the new skins,
+for example "New skin: TBAS Bf110-E2 by MayheM-1."
 
 While IL-2 is running it doesn't install anything, so nothing downloads in
 the middle of a flight. New skins wait until you quit the game. To install
@@ -54,6 +71,21 @@ installs new skins while the window is open.
 - After TBAS Sync updates itself, it shows what changed, once.
 
 
+THE HANGAR
+----------
+The window shows every skin of the TBAS collection as a picture card,
+grouped by aircraft, with the name of whoever made it. Click a card to open
+that skin on the HSD website.
+
+Skins that arrived on your PC in the last 14 days are listed first, under
+"Latest arrivals", and carry a NEW tag. Updated skins count too. Right
+after a first install nothing is marked, because everything is new.
+
+The pictures are downloaded the first time you open the window (about
+12 MB) and then kept on your PC. Nothing is downloaded for the hangar while
+TBAS Sync is hidden in the tray.
+
+
 REMOVING OLD TBAS SKINS
 -----------------------
 When a skin is taken out of the TBAS collection, TBAS Sync shows a "Remove
@@ -78,20 +110,41 @@ you'll find:
     TBASSync-installed.json - which skins TBAS Sync installed (used to
                              offer removing old TBAS skins)
     TBASSync-hashes.json   - cached file checksums (safe to delete)
+    previews\              - small skin pictures for the hangar (safe to
+                             delete)
     TBASSync-device.json   - anonymous usage ID (see USAGE STATISTICS)
     temp\                  - scratch downloads (safe to delete when closed)
 
 
 UPGRADING FROM AN OLDER VERSION
 -------------------------------
-Just replace your old TBASSync.exe with the new one. The first time you run
-the new build, any configuration file sitting next to the old exe will be
-moved into %APPDATA%\TBASSync\ automatically — you don't have to redo your
+TBAS Sync updates itself when a new version comes out, whether you used
+the installer or the zip. To update by hand, run the newest
+TBASSync-Setup.exe (it installs over the old version), or with the zip
+copy, replace your old TBASSync.exe with the new one.
+
+Moving from the zip to the installer: quit TBAS Sync (tray icon > Quit),
+run TBASSync-Setup.exe, then delete your old TBASSync.exe. Your settings in
+%APPDATA%\TBASSync\ are kept, and the installed copy takes over starting
+with Windows the first time it runs.
+
+Coming from a much older zip version: the first time you run the new
+build, any configuration file sitting next to the old exe will be moved
+into %APPDATA%\TBASSync\ automatically — you don't have to redo your
 first-launch setup.
 
 
 UNINSTALLING
 ------------
+Installed with TBASSync-Setup.exe:
+1. Quit TBAS Sync from its tray icon.
+2. Open Windows Settings > Apps > Installed apps, find TBAS Sync, click
+   the ... button and choose Uninstall. This removes the app, its
+   shortcuts and its "start with Windows" entry.
+3. Your settings are kept. Delete the %APPDATA%\TBASSync\ folder too if
+   you want to remove your settings, log, and caches.
+
+Zip copy:
 1. Quit TBAS Sync from its tray icon.
 2. Remove it from Windows startup by running this in a Command Prompt:
        reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v TBASSync /f
@@ -121,6 +174,8 @@ app's parameters panel, or directly in the JSON file.
         "MetalheadNumbers"   HSD pack 1, notes from Metalhead measurements
       If the chosen pack is offline, the app shows it as "Unavailable: ..."
       and skips cockpit photos until it is back.
+      The line under the list describes the selected pack, and the
+      "Preview" button shows its note for each aircraft.
 
   applyCensorship
       true/false. When true, skins that contain restricted symbols (such as
@@ -153,7 +208,11 @@ Your IP address is not stored. To turn this off, open
 TROUBLESHOOTING
 ---------------
 - "The app didn't open / nothing happens"
-    Make sure you extracted the zip first — see INSTALLATION.
+    If you use the zip, make sure you extracted it first — see
+    INSTALLATION. Or install with TBASSync-Setup.exe instead.
+
+- "Windows protected your PC"
+    TBAS Sync isn't code-signed. Click "More info", then "Run anyway".
 
 - "It crashed"
     Open %APPDATA%\TBASSync\TBASSync.log — the last few lines usually say

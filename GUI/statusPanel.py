@@ -8,11 +8,12 @@ class StatusPanel:
     def __init__(self, root, on_status=None):
         self.root = root
         self._on_status = on_status   # gets every status title, e.g. to mirror it in the tray tooltip
+        self._band = False
 
         self.frame = tk.Frame(root, bg=TBASDarkTheme.BG_DARKER)
         self.frame.pack(expand=True, fill="both")
 
-        inner = tk.Frame(self.frame, bg=TBASDarkTheme.BG_DARKER)
+        inner = self.inner = tk.Frame(self.frame, bg=TBASDarkTheme.BG_DARKER)
         inner.place(relx=0.5, rely=0.42, anchor="center")
 
         self.icon_label = tk.Label(
@@ -45,22 +46,37 @@ class StatusPanel:
         self.actions_frame = tk.Frame(inner, bg=TBASDarkTheme.BG_DARKER)
         self.actions_frame.pack(pady=(10, 0))
 
-    def setCompact(self, compact: bool):
-        """Drop the big icon line so the text still fits above the preview strip."""
+    def setCompact(self, compact: bool, band: bool = False):
+        """compact: drop the big icon line so the text still fits above the preview strip.
+        band: also be only as tall as the text, because the hangar takes the rest of the window."""
         if compact:
             self.icon_label.pack_forget()
         elif not self.icon_label.winfo_manager():
             self.icon_label.pack(pady=(0, 3), before=self.title_label)
+        self._band = band
+        self.inner.place_configure(rely=0.5 if band else 0.42)
+        self._fit()
+
+    def _fit(self):
+        if self._band:
+            self.inner.update_idletasks()
+            self.frame.configure(height=self.inner.winfo_reqheight() + 16)
 
     def _clear_actions(self):
         for child in self.actions_frame.winfo_children():
             child.destroy()
+        self.actions_frame.pack_forget()   # empty, it would still pad the band above the hangar
 
     def _show(self, icon, icon_color, title, title_color, detail=""):
         self._clear_actions()
         self.icon_label.configure(text=icon, fg=icon_color)
         self.title_label.configure(text=title, fg=title_color)
         self.detail_label.configure(text=detail)
+        if detail:
+            self.detail_label.pack()
+        else:
+            self.detail_label.pack_forget()
+        self._fit()
         if self._on_status:
             self._on_status(title)
 
@@ -146,6 +162,7 @@ class StatusPanel:
         self._show("?", TBASDarkTheme.ACCENT_PRIMARY,
                    title, TBASDarkTheme.FG_PRIMARY, detail)
 
+        self.actions_frame.pack(pady=(10, 0))
         primary_btn = ttk.Button(
             self.actions_frame,
             text=primary_label,
@@ -160,3 +177,4 @@ class StatusPanel:
             command=on_secondary,
         )
         secondary_btn.pack(side="left", padx=6)
+        self._fit()

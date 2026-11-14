@@ -16,6 +16,7 @@ dist/
 
 # Runtime state (generated beside the exe or under %APPDATA%\TBASSync)
 temp/
+previews/
 Subscriptions/
 TBASSync-config.json
 TBASSync-subscriptions.json

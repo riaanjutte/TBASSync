@@ -1,6 +1,8 @@
 import io
 import math
+import os
 import queue
+import re
 import threading
 import time
 import tkinter as tk
@@ -8,6 +10,7 @@ import tkinter as tk
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps, ImageTk
 
 import Services.loggingService as loggingService
+from Services.paths import getUserDataFilePath
 from Services.remoteService import downloadSkinPreview
 from GUI.customTheme import TBASDarkTheme
 
@@ -44,8 +47,29 @@ def _rgb(hex_color):
     return tuple(int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
 
 
-def _render_card(thumb, title, kind, dim):
-    """Bake thumbnail (or placeholder) + caption + NEW/UPDATE tag + rounded corners into one image.
+def load_thumb(preview_path):
+    """Card-sized thumbnail of a skin preview. Kept on disk: HSD only serves the 160 KB originals,
+    and the hangar shows every skin of the collection."""
+    # shortcut: thumbnails of replaced previews are never deleted (about 8 KB each); prune them if the folder grows
+    cached = os.path.join(getUserDataFilePath("previews"), re.sub(r"\W", "_", preview_path) + ".jpg")
+    try:
+        with Image.open(cached) as image:
+            return image.convert("RGB")
+    except OSError:
+        pass
+    image = Image.open(io.BytesIO(downloadSkinPreview(preview_path))).convert("RGB")
+    thumb = ImageOps.fit(image, (CARD_W, CARD_H), Image.Resampling.LANCZOS)
+    try:
+        os.makedirs(os.path.dirname(cached), exist_ok=True)
+        thumb.save(cached, quality=88)
+    except OSError as e:
+        loggingService.warning(f"Cannot cache skin preview {preview_path}: {e}")
+    return thumb
+
+
+def render_card(thumb, title, kind=None, dim=False, subtitle=None):
+    """Bake thumbnail (or placeholder) + caption (+ a muted second line) + NEW/UPDATE tag (if kind)
+    + rounded corners into one image.
 
     Canvas images are rectangular, so the rounded corners are composited onto the
     strip background colour.
@@ -60,26 +84,33 @@ def _render_card(thumb, title, kind, dim):
     img = img.convert("RGBA")
 
     # bottom gradient keeps the caption readable on bright previews
-    gradient = Image.new("RGBA", (CARD_W, 34), (0, 0, 0, 0))
+    shade = 50 if subtitle else 34
+    gradient = Image.new("RGBA", (CARD_W, shade), (0, 0, 0, 0))
     draw = ImageDraw.Draw(gradient)
-    for y in range(34):
-        draw.line([(0, y), (CARD_W, y)], fill=(0, 0, 0, int(215 * (y / 33) ** 1.4)))
-    img.alpha_composite(gradient, (0, CARD_H - 34))
+    for y in range(shade):
+        draw.line([(0, y), (CARD_W, y)], fill=(0, 0, 0, int(215 * (y / (shade - 1)) ** 1.4)))
+    img.alpha_composite(gradient, (0, CARD_H - shade))
 
     draw = ImageDraw.Draw(img)
-    caption_font = _font(13, "SemiBold")
-    text = title
-    while draw.textlength(text, font=caption_font) > CARD_W - 14 and len(text) > 4:
-        text = text[:-2]
-    if text != title:
-        text = text.rstrip() + "…"
-    draw.text((7, CARD_H - 19), text, font=caption_font, fill=(239, 239, 239, 255))
 
-    tag_text, tag_color = ("NEW", TBASDarkTheme.INFO) if kind == KIND_NEW else ("UPDATE", TBASDarkTheme.ACCENT_PRIMARY)
-    tag_font = _font(10, "Bold")
-    tag_w = draw.textlength(tag_text, font=tag_font)
-    draw.rounded_rectangle([6, 6, 6 + tag_w + 10, 6 + 15], radius=3, fill=_rgb(tag_color) + (235,))
-    draw.text((11, 7), tag_text, font=tag_font, fill=(255, 255, 255, 255))
+    def caption(text, font, y, fill):
+        fitted = text
+        while draw.textlength(fitted, font=font) > CARD_W - 14 and len(fitted) > 4:
+            fitted = fitted[:-2]
+        if fitted != text:
+            fitted = fitted.rstrip() + "…"
+        draw.text((7, y), fitted, font=font, fill=fill)
+
+    caption(title, _font(13, "SemiBold"), CARD_H - (34 if subtitle else 19), (239, 239, 239, 255))
+    if subtitle:
+        caption(subtitle, _font(11), CARD_H - 17, (190, 190, 190, 255))
+
+    if kind:
+        tag_text, tag_color = ("NEW", TBASDarkTheme.INFO) if kind == KIND_NEW else ("UPDATE", TBASDarkTheme.ACCENT_PRIMARY)
+        tag_font = _font(10, "Bold")
+        tag_w = draw.textlength(tag_text, font=tag_font)
+        draw.rounded_rectangle([6, 6, 6 + tag_w + 10, 6 + 15], radius=3, fill=_rgb(tag_color) + (235,))
+        draw.text((11, 7), tag_text, font=tag_font, fill=(255, 255, 255, 255))
 
     mask = Image.new("L", (CARD_W, CARD_H), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, CARD_W - 1, CARD_H - 1], radius=6, fill=255)
@@ -256,8 +287,7 @@ class PreviewStrip(tk.Frame):
             preview_path = self._preview_requests.get()
             thumb = None
             try:
-                image = Image.open(io.BytesIO(downloadSkinPreview(preview_path))).convert("RGB")
-                thumb = ImageOps.fit(image, (CARD_W, CARD_H), Image.Resampling.LANCZOS)
+                thumb = load_thumb(preview_path)
             except Exception as e:
                 loggingService.warning(f"Cannot load skin preview {preview_path}: {e}")
             self._commands.put(("preview", preview_path, thumb))
@@ -270,7 +300,7 @@ class PreviewStrip(tk.Frame):
     def _card_image(self, card):
         thumb = self._thumbs.get(card.preview_path)
         dim = card.state in ("downloading", "failed")
-        return ImageTk.PhotoImage(_render_card(thumb, card.title, card.kind, dim))
+        return ImageTk.PhotoImage(render_card(thumb, card.title, card.kind, dim))
 
     def _refresh_card_image(self, card):
         card.photo = self._card_image(card)

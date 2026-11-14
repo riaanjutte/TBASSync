@@ -85,3 +85,22 @@ if (Test-Path "releaseAssets") {
 #create the zip with all files in the dist
 Compress-Archive -Path "$DistDir\*" -DestinationPath $DistDir"\"$zipFile
 
+#build the installer (release\TBASSync-Setup.exe) after the zip, so Setup is not inside the zip
+$iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+if (-not $iscc) {
+    $iscc = @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+if ($iscc) {
+    $versionLabel = python -c "from Services.versionManager import getVersionLabel; print(getVersionLabel())"
+    & $iscc /Q "/DAppVersionNum=$VERSION" "/DAppVersionLabel=$versionLabel" "installer\TBASSync.iss"
+    if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed (exit code $LASTEXITCODE)" }
+} elseif ($env:CI) {
+    throw "Inno Setup 6 (ISCC.exe) not found: cannot build TBASSync-Setup.exe"
+} else {
+    Write-Warning "Inno Setup 6 (ISCC.exe) not found: skipping TBASSync-Setup.exe. Install it from https://jrsoftware.org/isdl.php"
+}
+

@@ -33,15 +33,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Inno Setup 6 is preinstalled on windows-latest (Windows Server 2025);
+      # buildRelease.ps1 fails when $env:CI is set and ISCC.exe is missing.
       - name: Build release
         shell: pwsh
         run: .\buildRelease.ps1
 
-      - name: Upload zip artifact
+      - name: Upload zip and installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: TBASSync
-          path: release/TBASSync.zip
+          path: |
+            release/TBASSync.zip
+            release/TBASSync-Setup.exe
           if-no-files-found: error
 
       - name: Attach assets to GitHub Release
@@ -51,4 +55,5 @@ jobs:
           files: |
             release/TBASSync.zip
             release/TBASSync.exe
+            release/TBASSync-Setup.exe
           generate_release_notes: true

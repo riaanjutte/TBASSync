@@ -83,6 +83,20 @@ remoteService.downloadCustomPhoto("officialNumbers", {"aircraft": "A20B", "md5":
 check("note downloads from HSD and is saved as custom_photo.dds",
       downloads == [("https://hsd-online.net/api/cockpitNotesPacks/notes/63?md5=abc", "abc", "custom_photo.dds")])
 
+# ── a skin that only exists with restricted symbols, for a member who hides them
+dds = {"dds_files": [{"destination_name": "x.dds", "path": "1?md5=a", "MD5": "a"}]}
+remote = lambda skin_id, **variants: remoteService.RemoteSkin(
+    {"id": skin_id, "title": f"Skin {skin_id}", "game_asset": {"code_name": "P51D15"}, **variants})
+plain, restricted_only = remote(1, No_Restricted_Symbols=dds), remote(2, Restricted_Symbols=dds)
+scannerService.getAllSubcriptions = lambda: [types.SimpleNamespace(
+    active=True, name="TBAS", id=5, skins=[plain, restricted_only], skins_count=2)]
+harness.write_config(applyCensorship=True)
+check("symbols hidden: a skin that only exists with them has nothing to install", restricted_only.dds_files() == [])
+check("symbols hidden: that skin is left out of the scan, the others are not",
+      [s.id() for s in scannerService.scanSkins().missingSkins] == [1])
+harness.write_config(applyCensorship=False)
+check("symbols shown: it is installed like any other", [s.id() for s in scannerService.scanSkins().missingSkins] == [1, 2])
+
 # ── a dead cockpit catalog is logged as one warning line, not a traceback
 harness.write_config(cockpitNotesMode="officialNumbers")
 scannerService.scanSkins = lambda: scannerService.ScanResult()

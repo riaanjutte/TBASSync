@@ -65,8 +65,9 @@ def scanSkins():
         
         loggingService.info(f"Subscribed collection : {collection.name}")
         for skin in collection.skins:
-            #do not load the same skin twice
-            if skin.id() not in skins_ids:
+            #do not load the same skin twice, and skip a skin with nothing to install for this member
+            #(it only exists with restricted symbols, which are hidden): it would be "missing" on every check
+            if skin.id() not in skins_ids and skin.dds_files():
                 scanResult.subscribedSkins.append(skin)
                 skins_ids.append(skin.id())
     

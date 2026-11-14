@@ -13,10 +13,26 @@ by RaphED, adapted for HSD v2 by IRRE_Fizz and Haluter.
 
 ## Installation
 
-Grab the latest `TBASSync.zip` from the
-[Releases](https://github.com/riaanjutte/TBASSync/releases) page, extract it
-somewhere permanent (Desktop, `Documents`, a dedicated tools folder — not the
-zip itself, and not `Program Files`), and run `TBASSync.exe`.
+Download `TBASSync-Setup.exe` from the
+[Releases](https://github.com/riaanjutte/TBASSync/releases) page and run it.
+It installs for your Windows account only (no admin prompt) into
+`%LOCALAPPDATA%\Programs\TBAS Sync` and adds a Start Menu shortcut.
+
+TBAS Sync isn't code-signed, so Windows SmartScreen may say "Windows protected
+your PC". Click **More info**, then **Run anyway**.
+
+**Moving from the zip:** quit the old TBAS Sync (tray icon > Quit), run Setup,
+then delete your old `TBASSync.exe`. Your settings in `%APPDATA%\TBASSync\` are
+kept, and the installed copy takes over starting with Windows the first time it
+runs.
+
+**Uninstalling:** Windows Settings > Apps > Installed apps > TBAS Sync >
+Uninstall. Your settings in `%APPDATA%\TBASSync\` are left in place; delete that
+folder too if you want them gone.
+
+**Portable zip:** prefer no installer? `TBASSync.zip` on the same page still
+works. Extract it somewhere permanent (Desktop, `Documents`, a dedicated tools
+folder — not the zip itself, and not `Program Files`), and run `TBASSync.exe`.
 
 See [`releaseAssets/README.txt`](releaseAssets/README.txt) for the full
 end-user guide that ships inside the zip.
@@ -46,7 +62,10 @@ pip install -r requirements.txt
 .\buildRelease.ps1
 ```
 
-The packaged `TBASSync.zip` is emitted under `release\`.
+`TBASSync.exe`, `TBASSync.zip` and the installer `TBASSync-Setup.exe` are
+emitted under `release\`. The installer needs
+[Inno Setup 6](https://jrsoftware.org/isdl.php); without it the build skips
+Setup with a warning (on CI it fails).
 
 To run the app directly from source:
 
@@ -62,6 +81,7 @@ GUI/          Tkinter UI (main window, panels, modals, splash, updater)
 Services/    Core logic: config, scanning, sync, HSD API client, updater
 Resources/   Icons, splash screens, app icon
 releaseAssets/  Files copied into the release zip (end-user README)
+installer/      Inno Setup script for TBASSync-Setup.exe
 buildRelease.ps1   PyInstaller build driver
 TBASSync.spec      PyInstaller spec
 ```

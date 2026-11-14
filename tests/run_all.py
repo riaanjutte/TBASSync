@@ -9,7 +9,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RUNS = [
     ("test_services.py",),
     ("test_sync_guards.py",),
+    ("test_cockpit_preview.py",),
     ("test_changelog.py",),
+    ("test_hangar.py",),
     ("test_background_checkbox.py", "on"),
     ("test_background_checkbox.py", "off"),
     ("test_background_checkbox.py", "fresh"),

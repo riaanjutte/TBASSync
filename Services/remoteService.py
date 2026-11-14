@@ -21,6 +21,12 @@ class RemoteSkin:
         return self._json_raw_data["title"]
     def game_asset_code(self):
         return self._json_raw_data["game_asset"]["code_name"]
+    def aircraft_name(self):
+        return self._json_raw_data["game_asset"].get("display_name") or self.game_asset_code()
+    def creator(self):
+        return self._json_raw_data.get("creator") or ""
+    def page_URL(self):
+        return f"https://hsd-online.net/skins/{self.id()}"
     
     #get variant sub json data
     def unrestricted_variant_content(self) -> json:
@@ -43,7 +49,8 @@ class RemoteSkin:
             self.path = path
     
     def dds_files(self) -> list[remoteDDSFileInfo]:
-        variant = self.get_variant_regarding_censorship_configuration()
+        # no variant: the skin only exists with restricted symbols, and they are hidden
+        variant = self.get_variant_regarding_censorship_configuration() or {}
         dds_files_info = []
         for file in variant.get("dds_files", []):
             dds_file = self.remoteDDSFileInfo(
@@ -123,6 +130,7 @@ def getRemoteCollectionsCatalog() -> list[RemoteCollection]:
 # the chosen pack, or "noSync".
 cockpit_notes_packs_URL = f"{main_api_URL}/cockpitNotesPacks"
 cockpit_notes_download_URL = f"{main_api_URL}/cockpitNotesPacks/notes/[path]"
+cockpit_notes_pack_page_URL = "https://hsd-online.net/cockpit-notes/[pack_id]"
 # Choices saved before the app listed HSD's packs each named an IRRE catalog. Fizz moved those to
 # these HSD packs in Oct 2026, when the IRRE server dropped them.
 legacyCockpitNotesPackIds = {
@@ -148,6 +156,20 @@ def getCockpitNotesPacks():
     response = requests.get(cockpit_notes_packs_URL, timeout=10)
     response.raise_for_status()
     return [pack for pack in response.json()["packs"] if pack.get("state") == "Approved" and pack.get("game") == "IL2GB"]
+
+
+def getCockpitNotesPack(pack_id):
+    """One pack with its notes: {..., "notes": [{"game_asset": {"code_name", "display_name"}, "MD5", "thumbnail_path", ...}]}."""
+    response = requests.get(f"{cockpit_notes_packs_URL}/{pack_id}", timeout=HTTP_TIMEOUT)
+    response.raise_for_status()
+    return response.json()
+
+
+def downloadCockpitNoteThumbnail(thumbnail_path) -> bytes:
+    """Raw bytes of a note's thumbnail (HSD serves WebP, about 717x1024 and 90 KB)."""
+    response = requests.get(cockpit_notes_download_URL.replace("[path]", thumbnail_path), timeout=HTTP_TIMEOUT)
+    response.raise_for_status()
+    return response.content
 
 
 def getCustomPhotosList():
