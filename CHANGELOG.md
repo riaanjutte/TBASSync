@@ -4,7 +4,7 @@ All notable changes to TBASSync are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely and uses
 integer version numbers that match `Services/versionManager.py`.
 
-## [Unreleased]
+## [18] - 2026-11-14
 
 ### Added
 - The notification after new skins are installed now names them, for example "New skin: TBAS Bf110-E2 by MayheM-1."
@@ -16,7 +16,7 @@ integer version numbers that match `Services/versionManager.py`.
 - The window opens a little larger, to make room for the hangar.
 
 ### Fixed
-- With "Restricted symbols" set to "Hide", every skin update failed with "Unexpected error during update" as long as the collection held a skin that only exists with restricted symbols. Such skins are now skipped when symbols are hidden.
+- With "Restricted symbols" set to "Hide", every skin update failed with "Unexpected error during update" and no skins were installed, because the collection holds skins that only exist with restricted symbols. Those skins are now skipped when symbols are hidden.
 
 ### Removed
 - The "Also sync Friends of TBAS collection" setting. Friends of TBAS skins you already have stay installed, but are no longer updated.
