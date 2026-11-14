@@ -1,0 +1,16 @@
+[Unit]
+Description=TBAS Sync Discord announcer (posts new TBAS collection skins)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=true
+StateDirectory=tbassync-discord
+EnvironmentFile=/etc/tbassync-discord.env
+Environment=TBASSYNC_DISCORD_STATE=/var/lib/tbassync-discord/seen.json
+ExecStart=/usr/bin/python3 /opt/tbassync-discord/discord_announcer.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

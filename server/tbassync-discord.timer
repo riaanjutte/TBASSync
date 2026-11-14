@@ -1,0 +1,9 @@
+[Unit]
+Description=Run the TBAS Sync Discord announcer every 10 minutes
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+
+[Install]
+WantedBy=timers.target
