@@ -47,7 +47,7 @@ results = []
 def write_config(**values):
     """Write the sandbox config (None removes a key) and make the app re-read it."""
     config = {"IL2GBGameDirectory": IL2, "cockpitNotesMode": "noSync", "applyCensorship": False,
-              "autoRemoveUnregisteredSkins": False, "syncFriendsOfTBAS": False}
+              "autoRemoveUnregisteredSkins": False}
     config.update(values)
     json.dump({k: v for k, v in config.items() if v is not None}, open("TBASSync-config.json", "w"))
     configurationService.current_config = None

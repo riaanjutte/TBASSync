@@ -4,6 +4,11 @@ All notable changes to TBASSync are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely and uses
 integer version numbers that match `Services/versionManager.py`.
 
+## [Unreleased]
+
+### Removed
+- The "Also sync Friends of TBAS collection" setting. Friends of TBAS skins you already have stay installed, but are no longer updated.
+
 ## [17] - 2026-11-09
 
 ### Added

@@ -27,7 +27,6 @@ default_config = {
     "autoRemoveUnregisteredSkins": False,
     "cockpitNotesMode": "noSync",
     "applyCensorship": False,
-    "syncFriendsOfTBAS": False,
     "trayMode": True,
     # the version whose changes were last shown. Configs from before this setting are one version
     # behind, so an update to this version shows its changes; a fresh install records the current one.

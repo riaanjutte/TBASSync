@@ -10,7 +10,6 @@ from Services.configurationService import getConf, update_config_param, cockpitN
 from Services.filesService import getIconPath
 from Services.messageBrocker import MessageBrocker
 from Services.remoteService import selectedCockpitNotesPackId
-from Services.subscriptionsService import invalidateSubscriptionsCache
 
 class ParametersPanel:
     def __init__(self, root: tk, on_parameters_change=None, ask_broad_search=None, ui: UiDispatcher = None,
@@ -99,19 +98,6 @@ class ParametersPanel:
             command=self.modify_apply_censorship,
         )
         self.show_restricted_radio.pack(side=tk.LEFT, padx=5)
-
-        friends_frame = tk.Frame(params_label_frame)
-        friends_frame.pack(fill="x", pady=2)
-
-        self.sync_friends_var = tk.BooleanVar(value=getConf("syncFriendsOfTBAS"))
-        self.sync_friends_check = ttk.Checkbutton(
-            friends_frame,
-            text="Also sync \"Friends of TBAS\" collection",
-            variable=self.sync_friends_var,
-            command=self.modify_sync_friends,
-        )
-        self.sync_friends_check.pack(side=tk.LEFT, padx=5)
-        Tooltip(self.sync_friends_check, text="Optional: also download skins from the Friends of TBAS collection")
 
         background_frame = tk.Frame(params_label_frame)
         background_frame.pack(fill="x", pady=2)
@@ -267,11 +253,6 @@ class ParametersPanel:
         update_config_param("applyCensorship", self.hide_restricted_var.get())
         self.emit_collections_change()
 
-    def modify_sync_friends(self):
-        update_config_param("syncFriendsOfTBAS", self.sync_friends_var.get())
-        invalidateSubscriptionsCache()
-        self.emit_collections_change()
-
     def modify_background(self):
         update_config_param("trayMode", self.background_var.get())
         if self.on_background_change:
@@ -304,13 +285,11 @@ class ParametersPanel:
         self.cokpitNote_dropdown.configure(state="disabled")
         self.hide_restricted_radio.configure(state="disabled")
         self.show_restricted_radio.configure(state="disabled")
-        self.sync_friends_check.configure(state="disabled")
         self.path_label.unbind("<Button-1>")
 
     def unlock_actions(self):
         self.cokpitNote_dropdown.configure(state="readonly")
         self.hide_restricted_radio.configure(state="normal")
         self.show_restricted_radio.configure(state="normal")
-        self.sync_friends_check.configure(state="normal")
         # Click event configuration
         self.path_label.bind("<Button-1>", lambda e: self.modify_path())
