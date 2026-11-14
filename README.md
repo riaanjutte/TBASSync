@@ -21,13 +21,13 @@ It installs for your Windows account only (no admin prompt) into
 TBAS Sync isn't code-signed, so Windows SmartScreen may say "Windows protected
 your PC". Click **More info**, then **Run anyway**.
 
-**Moving from the zip:** quit the old TBAS Sync (tray icon > Quit), run Setup,
-then delete your old `TBASSync.exe`. Your settings in `%APPDATA%\TBASSync\` are
+**Moving from the zip:** run Setup, then delete your old `TBASSync.exe`. Setup
+closes a running TBAS Sync itself, wherever its exe is. Your settings in `%APPDATA%\TBASSync\` are
 kept, and the installed copy takes over starting with Windows the first time it
 runs.
 
 **Uninstalling:** Windows Settings > Apps > Installed apps > TBAS Sync >
-Uninstall. Your settings in `%APPDATA%\TBASSync\` are left in place; delete that
+Uninstall. It closes TBAS Sync first if it's running. Your settings in `%APPDATA%\TBASSync\` are left in place; delete that
 folder too if you want them gone.
 
 **Portable zip:** prefer no installer? `TBASSync.zip` on the same page still

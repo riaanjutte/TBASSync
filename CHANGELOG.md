@@ -10,7 +10,7 @@ integer version numbers that match `Services/versionManager.py`.
 - The notification after new skins are installed now names them, for example "New skin: TBAS Bf110-E2 by MayheM-1."
 - A hangar in the main window: every skin of the TBAS collection as a picture card, grouped by aircraft, with the name of whoever made it. Skins that arrived on your PC in the last 14 days are listed first under "Latest arrivals" and marked NEW. Click a card to open the skin on HSD.
 - Under the "Cockpit notes/photos" list, a line now describes the selected pack: what it contains, who made it and how many aircraft it covers. Click "Preview" to see the pack's notes for each aircraft before you choose it, with a link to the pack on HSD.
-- A Windows installer, TBASSync-Setup.exe. It installs TBAS Sync for your Windows account only (no admin password needed), adds a Start Menu shortcut (and a desktop shortcut if you want one), and can be removed from Windows Settings > Apps. Your settings are kept when you switch from the zip, and the zip is still available if you prefer it.
+- A Windows installer, TBASSync-Setup.exe. It installs TBAS Sync for your Windows account only (no admin password needed), adds a Start Menu shortcut (and a desktop shortcut if you want one), and can be removed from Windows Settings > Apps. Your settings are kept when you switch from the zip, and the zip is still available if you prefer it. Setup closes a running TBAS Sync for you, and has the same dark look and TBAS logo as the app.
 
 ### Changed
 - The window opens a little larger, to make room for the hangar.

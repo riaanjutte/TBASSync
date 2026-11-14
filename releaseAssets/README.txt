@@ -123,8 +123,9 @@ the installer or the zip. To update by hand, run the newest
 TBASSync-Setup.exe (it installs over the old version), or with the zip
 copy, replace your old TBASSync.exe with the new one.
 
-Moving from the zip to the installer: quit TBAS Sync (tray icon > Quit),
-run TBASSync-Setup.exe, then delete your old TBASSync.exe. Your settings in
+Moving from the zip to the installer: run TBASSync-Setup.exe, then delete
+your old TBASSync.exe. Setup closes a running TBAS Sync itself (after you
+click Install), wherever its exe is. Your settings in
 %APPDATA%\TBASSync\ are kept, and the installed copy takes over starting
 with Windows the first time it runs.
 
@@ -137,11 +138,11 @@ first-launch setup.
 UNINSTALLING
 ------------
 Installed with TBASSync-Setup.exe:
-1. Quit TBAS Sync from its tray icon.
-2. Open Windows Settings > Apps > Installed apps, find TBAS Sync, click
-   the ... button and choose Uninstall. This removes the app, its
-   shortcuts and its "start with Windows" entry.
-3. Your settings are kept. Delete the %APPDATA%\TBASSync\ folder too if
+1. Open Windows Settings > Apps > Installed apps, find TBAS Sync, click
+   the ... button and choose Uninstall. This closes TBAS Sync if it's
+   running, then removes the app, its shortcuts and its "start with
+   Windows" entry.
+2. Your settings are kept. Delete the %APPDATA%\TBASSync\ folder too if
    you want to remove your settings, log, and caches.
 
 Zip copy:
